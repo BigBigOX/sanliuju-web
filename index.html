@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>三六局 — 聚会破冰游戏</title>
+<style>
+  :root {
+    --warm: #F97316; --warm-light: #FFF7ED; --warm-dark: #EA580C;
+    --gold: #FBBF24; --gold-light: #FFFBEB;
+    --bg: #FFFBF5; --card: #FFFFFF; --text: #1C1917; --text2: #78716C;
+    --border: #FDE68A; --radius: 16px; --shadow: 0 4px 24px rgba(0,0,0,.06);
+    --danger: #EF4444; --success: #22C55E;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    min-height: 100dvh;
+  }
+
+  /* ===== Pages ===== */
+  .page { display: none; padding: 24px 16px; max-width: 520px; margin: 0 auto; min-height: 100dvh; }
+  .page.active { display: block; }
+
+  /* ===== Entry ===== */
+  .entry-hero { text-align: center; padding: 48px 0 32px; }
+  .entry-logo { font-size: 56px; margin-bottom: 8px; }
+  .entry-title { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, var(--warm), var(--warm-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .entry-sub { color: var(--text2); font-size: 14px; margin-top: 4px; }
+  .entry-btns { display: flex; flex-direction: column; gap: 14px; }
+  .btn-big {
+    display: block; width: 100%; padding: 18px; border-radius: var(--radius);
+    border: none; font-size: 18px; font-weight: 700; cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn-big:active { transform: scale(.98); }
+  .btn-host { background: var(--warm); color: #fff; box-shadow: 0 4px 16px rgba(249,115,22,.3); }
+  .btn-join  { background: var(--card); color: var(--warm); border: 2px solid var(--warm); }
+
+  /* ===== Room Bar ===== */
+  .room-bar {
+    background: var(--card); border-radius: var(--radius); padding: 16px 20px;
+    box-shadow: var(--shadow); display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .room-code { font-size: 26px; font-weight: 800; letter-spacing: 3px; color: var(--warm); }
+  .room-label { font-size: 11px; color: var(--text2); }
+
+  /* ===== Player Grid ===== */
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text2); }
+  .player-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+  .player-slot {
+    aspect-ratio: 1; border-radius: var(--radius); display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; transition: all .3s;
+    border: 2px dashed var(--border); color: var(--text2);
+  }
+  .player-slot.joined {
+    border-style: solid; background: var(--card); box-shadow: var(--shadow);
+    color: var(--text); border-color: transparent;
+  }
+  .player-slot .p-num { font-size: 20px; font-weight: 800; }
+  .player-slot .p-name { font-size: 12px; margin-top: 4px; }
+  .player-slot .host-badge {
+    font-size: 10px; background: var(--gold); color: #fff; padding: 2px 8px;
+    border-radius: 20px; margin-top: 4px;
+  }
+
+  /* ===== Controls ===== */
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .btn {
+    display: block; width: 100%; padding: 14px; border-radius: var(--radius);
+    border: none; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  .btn:disabled { opacity: .4; pointer-events: none; }
+  .btn-primary { background: var(--warm); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid #E7E5E4; }
+
+  /* ===== Input ===== */
+  .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .input {
+    flex: 1; padding: 14px 16px; border: 2px solid #E7E5E4; border-radius: var(--radius);
+    font-size: 18px; text-align: center; letter-spacing: 2px; outline: none;
+    text-transform: uppercase; font-weight: 700;
+  }
+  .input:focus { border-color: var(--warm); }
+
+  /* ===== Hint ===== */
+  .hint { text-align: center; color: var(--text2); font-size: 13px; margin: 20px 0; }
+  .status-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .status-waiting { background: var(--gold-light); color: #B45309; }
+  .status-playing { background: #DCFCE7; color: #15803D; }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: #1C1917; color: #fff; padding: 10px 24px; border-radius: 24px;
+    font-size: 14px; z-index: 999; opacity: 0; transition: opacity .3s;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ===== Console (host game view) ===== */
+  .console-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .round-badge {
+    padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: 700;
+    background: var(--warm); color: #fff;
+  }
+  .timer-big { font-size: 48px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
+  .timer-big.warn { color: var(--danger); }
+  .question-card {
+    background: var(--card); border-radius: var(--radius); padding: 24px;
+    box-shadow: var(--shadow); text-align: center; font-size: 18px;
+    font-weight: 600; margin: 16px 0; min-height: 80px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .question-card.empty { color: var(--text2); font-weight: 400; }
+  .coin-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+  .coin-row .player-tag { font-weight: 600; font-size: 14px; }
+  .coin-btns { display: flex; gap: 8px; }
+  .coin-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    font-size: 18px; font-weight: 700; cursor: pointer; color: #fff;
+  }
+  .coin-btn.plus  { background: var(--success); }
+  .coin-btn.minus { background: var(--danger); }
+
+  /* ===== Player board ===== */
+  .player-header { text-align: center; font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+  .board-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .heart-btn, .spark-btn {
+    flex: 1; padding: 20px; border-radius: var(--radius); border: none;
+    font-size: 32px; cursor: pointer; transition: transform .1s;
+  }
+  .heart-btn { background: #FEE2E2; }
+  .heart-btn:active { transform: scale(.9); }
+  .spark-btn { background: var(--gold-light); }
+  .spark-btn:active { transform: scale(.9); }
+
+  /* ===== Synced state indicator ===== */
+  .sync-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 6px;
+  }
+  .sync-dot.on  { background: var(--success); }
+  .sync-dot.off { background: #D4D4D8; }
+
+  @media (max-width: 400px) {
+    .player-grid { grid-template-columns: repeat(2, 1fr); }
+    .btn-big { padding: 14px; font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+
+<!-- ====== ENTRY PAGE ====== -->
+<div id="page-entry" class="page active">
+  <div class="entry-hero">
+    <div class="entry-logo">🦊</div>
+    <div class="entry-title">三六局</div>
+    <div class="entry-sub">线下聚会破冰游戏 · 3轮36问</div>
+  </div>
+  <div class="entry-btns">
+    <button class="btn-big btn-host" onclick="App.goHost()">🎤 主持聚会</button>
+    <button class="btn-big btn-join"  onclick="App.goJoin()">🎭 加入聚会</button>
+  </div>
+  <p class="hint" style="margin-top:32px;">在同一浏览器打开多个标签页<br>分别用不同角色进入即可测试同步</p>
+</div>
+
+<!-- ====== HOST: WAITING ROOM ====== -->
+<div id="page-host-wait" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <h2 style="font-size:20px;">🎤 主持人控制台</h2>
+    <span id="sync-indicator"><span class="sync-dot on"></span>同步中</span>
+  </div>
+
+  <div class="room-bar">
+    <div><div class="room-label">房间号</div><div class="room-code" id="host-room-id">------</div></div>
+    <div>
+      <span class="status-badge status-waiting" id="host-status-badge">等待中</span>
+    </div>
+  </div>
+
+  <div class="section-title">玩家列表 <span id="host-count">(0/6)</span></div>
+  <div class="player-grid" id="host-player-grid"></div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="host-start-btn" disabled onclick="App.hostStartGame()">
+      开始游戏（至少3人）
+    </button>
+    <button class="btn btn-ghost" onclick="App.goEntry()">返回</button>
+  </div>
+</div>
+
+<!-- ====== HOST: GAME CONSOLE ====== -->
+<div id="page-host-console" class="page">
+  <div class="console-header">
+    <span class="round-badge" id="console-round">破冰轮</span>
+    <span id="console-sync"><span class="sync-dot on"></span>同步中</span>
+    <button class="btn" style="width:auto;padding:6px 14px;font-size:13px;" onclick="App.goEntry()">退出</button>
+  </div>
+
+  <div class="timer-big" id="console-timer">30</div>
+
+  <div class="question-card empty" id="console-question">点击下方按钮抽取问题</div>
+
+  <div class="actions" style="margin-bottom:12px;">
+    <button class="btn btn-primary" id="console-draw-btn" onclick="App.hostDrawQuestion()">🎲 抽题</button>
+    <button class="btn btn-ghost" onclick="App.hostNextRound()">→ 下一轮</button>
+  </div>
+
+  <div class="section-title">玩家暖心值</div>
+  <div id="console-players"></div>
+</div>
+
+<!-- ====== PLAYER: JOIN ====== -->
+<div id="page-player-join" class="page">
+  <h2 style="font-size:20px;text-align:center;margin-bottom:24px;">🎭 加入聚会</h2>
+  <div class="input-row">
+    <input class="input" id="join-input" placeholder="输入房间号" maxlength="6" autocomplete="off">
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="App.playerJoin()">加入房间</button>
+    <button class="btn btn-ghost" onclick="App.goEntry()">返回</button>
+  </div>
+</div>
+
+<!-- ====== PLAYER: WAITING / BOARD ====== -->
+<div id="page-player-board" class="page">
+  <div class="player-header" id="player-label">🎭 玩家</div>
+
+  <div class="room-bar">
+    <div><div class="room-label">房间号</div><div class="room-code" id="player-room-id">------</div></div>
+    <span class="status-badge" id="player-status-badge">等待中</span>
+  </div>
+
+  <div id="player-waiting-area">
+    <p class="hint">等待主持人开始游戏…</p>
+    <div class="player-grid" id="player-wait-grid"></div>
+  </div>
+
+  <div id="player-game-area" style="display:none;">
+    <div class="timer-big" id="player-timer">30</div>
+    <div class="question-card empty" id="player-question">等待主持人出题…</div>
+    <div class="board-actions">
+      <button class="heart-btn" id="player-heart-btn" onclick="App.playerHeart()">❤️<br><small>暖心</small></button>
+      <button class="spark-btn" id="player-spark-btn" onclick="App.playerSpark()" style="display:none;">🔥<br><small>火花</small></button>
+    </div>
+  </div>
+
+  <button class="btn btn-ghost" style="margin-top:12px;" onclick="App.goEntry()">离开房间</button>
+</div>
+
+<script>
+// ============================================================
+// 三六局 Web 原型 — BroadcastChannel 多标签页同步
+// ============================================================
+
+const CH = 'sanliuju'
+const POOL = {
+  L1: ['你最近一次发自内心大笑是因为什么？','你最喜欢的旅行目的地是哪里？为什么？','如果你可以拥有一种超能力，你会选什么？','你最近在单曲循环的一首歌是什么？','你做过最勇敢的一件小事是什么？','你最喜欢的电影或书是哪一部？','你最近学到的一个有趣冷知识是什么？','你童年最快乐的记忆是什么？','如果能和任何一个名人共进晚餐，你会选谁？','你最喜欢什么季节？为什么？','你手机里最近一张照片拍的是什么？','你做过最疯狂的一件事是什么？','你最近一次下厨做了什么东西？','你小时候最喜欢的动画片是什么？','你日常生活中最让你开心的小事是什么？','你最近一次被种草的东西是什么？','你收到过最好的礼物是什么？','你最喜欢自己性格里的哪一个特点？','如果用三个词形容自己，你会选哪三个？','你今天过得怎么样？'],
+  L2: ['你觉得朋友之间最重要的是什么？','你小时候的梦想是什么？现在还在追吗？','你心中最理想的一天是什么样的？','你最近一次被人感动的经历是什么？','你做过最让自己骄傲的事情是什么？','你认为人与人之间产生信任的关键是什么？','你欣赏什么样的人？','朋友难过时，你通常会怎么安慰对方？','你觉得自己在团队中通常扮演什么角色？','你从家人身上学到的最重要的东西是什么？','你理想中的友情应该是什么样的？','你生命中收到过最好的建议是什么？','你做过最暖心的一个举动是什么？','你最近一次主动联系老朋友是什么时候？','你心中"高质量陪伴"是什么样的？'],
+  L3: ['你最近一次感到孤独是什么时候？','你觉得自己最大的优点和缺点分别是什么？','有没有一个秘密你一直想告诉某个人但还没说出口？','你上一次哭是因为什么？','你觉得自己被误解最深的一件事是什么？','如果生命只剩一年，你会怎么过？','你曾经历过最艰难的一段时期是怎么度过的？','你内心是否有过对某个亲近的人说不出口的愧疚？','你在什么情况下最容易感到焦虑？','你对自己最苛刻的地方是什么？','你对"家"的定义是什么？','你最近一次向别人示弱是什么时候？','你曾经为谁流过最多的眼泪？','你能坦然接受别人对你的批评吗？','你觉得自己最需要被理解的地方是什么？'],
+  L4: ['如果可以改变自己成长中的一件事，你会改变什么？','你生命中最重要的人教会了你什么？','你内心深处最想要的是什么？','你什么时候觉得自己真正长大了？','你认为人生的意义是什么？','有没有一句话曾在你最脆弱的时候支撑着你？','你希望自己以什么样的方式被记住？','你内心最深处害怕什么被时间带走？','你觉得什么是真正的自由？','你觉得自己这辈子注定要完成的一件事是什么？','如果今天是你生命最后一天，你还有什么话没说出口？','你生命中最深刻的遗憾是什么？你如何与之共处？','你相信命运吗？还是更相信自己的选择？','你认为快乐是一种选择还是一种结果？','十年后的你回头看今天，你最希望自己明白了什么？']
+}
+const ROUND_NAMES = { 1: '破冰轮', 2: '结对轮', 3: '默契轮' }
+function shuffle(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]] } return b }
+function genRoomId() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 6; i++) s += c[Math.floor(Math.random() * c.length)]; return s }
+
+// ============================================================
+// State
+// ============================================================
+const S = {
+  role: null,       // 'host' | 'player'
+  playerId: null,   // player number (1-6)
+  room: null,       // { id, status, maxPlayers, round }
+  players: [],      // [{ id, nickname, joined, coins, isHost }]
+  game: {
+    question: null, questionLevel: null,
+    timerEnd: null, timerRunning: false,
+    pairs: null, sparks: {}
+  }
+}
+
+// ============================================================
+// BroadcastChannel
+// ============================================================
+let channel = null
+function setupChannel() {
+  try {
+    channel = new BroadcastChannel(CH)
+    channel.onmessage = (e) => handleMessage(e.data)
+  } catch (_) {
+    // Fallback: use localStorage events for Safari/older browsers
+    window.addEventListener('storage', (e) => {
+      if (e.key === CH) {
+        try { handleMessage(JSON.parse(e.newValue)) } catch (_) {}
+      }
+    })
+  }
+}
+setupChannel()
+
+function broadcast(msg) {
+  const payload = { ...msg, ts: Date.now() }
+  if (channel) {
+    channel.postMessage(payload)
+  } else {
+    // localStorage fallback
+    localStorage.setItem(CH, JSON.stringify(payload))
+  }
+}
+
+// ============================================================
+// Message Handler
+// ============================================================
+function handleMessage(msg) {
+  const { type, from, data } = msg
+  if (from === S.role + '_' + S.playerId) return // ignore own messages
+
+  switch (type) {
+
+    case 'ROOM_STATE':
+      // Full state sync from host
+      if (S.role === 'player' && data.room.id === S.room?.id) {
+        S.room = data.room
+        S.players = data.players
+        S.game = data.game
+        render()
+      }
+      break
+
+    case 'PLAYER_JOINED':
+      if (S.role === 'host' && data.roomId === S.room?.id) {
+        S.players = data.players
+        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game } })
+        render()
+      }
+      break
+
+    case 'GAME_STARTED':
+      if (S.role === 'player' && data.roomId === S.room?.id) {
+        S.room.status = 'playing'
+        S.room.round = data.round || 1
+        render()
+      }
+      break
+
+    case 'QUESTION':
+      S.game.question = data.question
+      S.game.questionLevel = data.level
+      S.game.timerEnd = data.timerEnd
+      S.game.timerRunning = true
+      render()
+      startTimerUI()
+      break
+
+    case 'TIMER_TICK':
+      S.game.timerEnd = data.timerEnd
+      S.game.timerRunning = data.timerRunning
+      render()
+      if (S.game.timerRunning) startTimerUI()
+      break
+
+    case 'COINS_UPDATED':
+      if (S.role === 'player') {
+        S.players = data.players
+        render()
+      }
+      break
+
+    case 'HEART':
+    case 'SPARK':
+      // Host receives player reactions
+      if (S.role === 'host') {
+        toast(`${data.nickname || ('玩家' + data.playerId)} ${type === 'HEART' ? '❤️ 送出了暖心' : '🔥 送出了火花'}`)
+      }
+      break
+
+    case 'ROUND_CHANGED':
+      S.room.round = data.round
+      S.game.question = null
+      S.game.timerRunning = false
+      render()
+      break
+  }
+}
+
+// ============================================================
+// Render Helpers
+// ============================================================
+function $(id) { return document.getElementById(id) }
+function page(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  $(name).classList.add('active')
+}
+function toast(msg) {
+  const t = $('toast')
+  t.textContent = msg; t.classList.add('show')
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2000)
+}
+
+function renderPlayerGrid(containerId, players, max, showCoins) {
+  const grid = $(containerId)
+  if (!grid) return
+  let html = ''
+  for (let i = 0; i < max; i++) {
+    const p = players[i]
+    if (p && p.joined) {
+      html += `<div class="player-slot joined">
+        <div class="p-num">${p.id}</div>
+        <div class="p-name">${p.nickname || '玩家'+p.id}</div>
+        ${p.isHost ? '<div class="host-badge">房主</div>' : ''}
+        ${showCoins ? `<div style="font-size:13px;color:var(--gold);margin-top:2px;">🪙 ${p.coins || 0}</div>` : ''}
+      </div>`
+    } else {
+      html += `<div class="player-slot">
+        <div class="p-num">${i + 1}</div>
+        <div style="font-size:11px;">等待加入</div>
+      </div>`
+    }
+  }
+  grid.innerHTML = html
+}
+
+function renderConsolePlayers() {
+  const el = $('console-players')
+  if (!el) return
+  let html = ''
+  S.players.filter(p => p.joined).forEach((p, i) => {
+    html += `<div class="coin-row">
+      <span class="player-tag">${p.isHost ? '👑' : '🎭'} ${p.nickname || ('玩家'+p.id)}</span>
+      <div class="coin-btns">
+        <button class="coin-btn minus" onclick="App.hostCoin(${i},-1)">−</button>
+        <span style="font-weight:700;min-width:24px;text-align:center;">${p.coins || 0}</span>
+        <button class="coin-btn plus"  onclick="App.hostCoin(${i},1)">+</button>
+      </div>
+    </div>`
+  })
+  el.innerHTML = html || '<p class="hint">暂无玩家</p>'
+}
+
+let timerInterval = null
+function startTimerUI() {
+  clearInterval(timerInterval)
+  timerInterval = setInterval(() => {
+    if (!S.game.timerRunning) { clearInterval(timerInterval); return }
+    const remain = Math.max(0, Math.ceil(((S.game.timerEnd || 0) - Date.now()) / 1000))
+    const tEls = [$('console-timer'), $('player-timer')].filter(Boolean)
+    tEls.forEach(el => {
+      el.textContent = remain
+      if (remain <= 10) el.classList.add('warn')
+      else el.classList.remove('warn')
+    })
+    if (remain <= 0) {
+      S.game.timerRunning = false
+      clearInterval(timerInterval)
+      if (S.role === 'host') {
+        broadcast({ type: 'TIMER_TICK', from: 'host_0', data: { timerEnd: S.game.timerEnd, timerRunning: false } })
+      }
+    }
+  }, 200)
+}
+
+// ============================================================
+// Full Render
+// ============================================================
+function render() {
+  updateSyncIndicator()
+
+  // --- Host Waiting ---
+  if (S.role === 'host' && S.room?.status === 'waiting') {
+    $('host-room-id').textContent = S.room.id
+    $('host-count').textContent = `(${S.players.filter(p=>p.joined).length}/${S.room.maxPlayers})`
+    renderPlayerGrid('host-player-grid', S.players, S.room.maxPlayers, false)
+    const joined = S.players.filter(p => p.joined).length
+    const btn = $('host-start-btn')
+    btn.disabled = joined < 3
+    btn.textContent = joined >= 3 ? '开始游戏！' : `开始游戏（至少3人，当前${joined}人）`
+  }
+
+  // --- Host Console ---
+  if (S.role === 'host' && S.room?.status === 'playing') {
+    $('console-round').textContent = ROUND_NAMES[S.room.round] || '第' + S.room.round + '轮'
+    const qEl = $('console-question')
+    if (S.game.question) {
+      qEl.textContent = `[L${S.game.questionLevel}] ${S.game.question}`
+      qEl.classList.remove('empty')
+    } else {
+      qEl.textContent = '点击下方按钮抽取问题'
+      qEl.classList.add('empty')
+    }
+    // Show/hide draw button based on whether question is already drawn
+    $('console-draw-btn').style.display = S.game.question ? 'none' : ''
+    renderConsolePlayers()
+  }
+
+  // --- Player Board ---
+  if (S.role === 'player') {
+    $('player-room-id').textContent = S.room?.id || '------'
+    if (S.room?.status === 'waiting') {
+      $('player-waiting-area').style.display = ''
+      $('player-game-area').style.display = 'none'
+      $('player-status-badge').textContent = '等待中'
+      $('player-status-badge').className = 'status-badge status-waiting'
+      renderPlayerGrid('player-wait-grid', S.players, S.room?.maxPlayers || 6, false)
+    } else if (S.room?.status === 'playing') {
+      $('player-waiting-area').style.display = 'none'
+      $('player-game-area').style.display = ''
+      $('player-status-badge').textContent = '游戏中'
+      $('player-status-badge').className = 'status-badge status-playing'
+
+      const qEl = $('player-question')
+      if (S.game.question) {
+        qEl.textContent = `[L${S.game.questionLevel}] ${S.game.question}`
+        qEl.classList.remove('empty')
+      } else {
+        qEl.textContent = '等待主持人出题…'
+        qEl.classList.add('empty')
+      }
+
+      // Show spark button only in round 2
+      $('player-spark-btn').style.display = S.room.round === 2 ? '' : 'none'
+    }
+  }
+}
+
+function updateSyncIndicator() {
+  const dots = document.querySelectorAll('.sync-dot')
+  dots.forEach(d => { d.className = 'sync-dot on' })
+}
+
+// ============================================================
+// App Actions
+// ============================================================
+const App = {
+
+  goEntry() {
+    clearInterval(timerInterval)
+    S.role = null; S.playerId = null; S.room = null; S.players = []; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {} }
+    page('page-entry')
+  },
+
+  // --- Host ---
+  goHost() {
+    S.role = 'host'; S.playerId = 0
+    const roomId = genRoomId()
+    const maxP = 6
+    S.room = { id: roomId, status: 'waiting', maxPlayers: maxP, round: 0 }
+    // Host is player 1
+    S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true }]
+    for (let i = 2; i <= maxP; i++) {
+      S.players.push({ id: i, nickname: '', joined: false, coins: 0, isHost: false })
+    }
+    page('page-host-wait')
+    render()
+    broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game } })
+  },
+
+  hostStartGame() {
+    S.room.status = 'playing'
+    S.room.round = 1
+    page('page-host-console')
+    render()
+    broadcast({ type: 'GAME_STARTED', from: 'host_0', data: { roomId: S.room.id, round: 1 } })
+  },
+
+  hostDrawQuestion() {
+    const round = S.room.round
+    let poolKey
+    if (round === 1) poolKey = 'L1'
+    else if (round === 2) poolKey = Math.random() < 0.5 ? 'L2' : 'L3'
+    else poolKey = 'L4'
+    const pool = POOL[poolKey]
+    const question = pool[Math.floor(Math.random() * pool.length)]
+    S.game.question = question
+    S.game.questionLevel = poolKey.replace('L', '')
+    S.game.timerEnd = Date.now() + 30000
+    S.game.timerRunning = true
+    render()
+    startTimerUI()
+    broadcast({ type: 'QUESTION', from: 'host_0', data: { question, level: poolKey.replace('L',''), timerEnd: S.game.timerEnd } })
+  },
+
+  hostNextRound() {
+    if (S.room.round >= 3) {
+      toast('已经是最后一轮了！')
+      return
+    }
+    S.room.round++
+    S.game.question = null
+    S.game.timerEnd = null
+    S.game.timerRunning = false
+    clearInterval(timerInterval)
+    render()
+    broadcast({ type: 'ROUND_CHANGED', from: 'host_0', data: { round: S.room.round } })
+  },
+
+  hostCoin(idx, delta) {
+    const p = S.players.filter(pl => pl.joined)[idx]
+    if (!p) return
+    p.coins = Math.max(0, (p.coins || 0) + delta)
+    renderConsolePlayers()
+    broadcast({ type: 'COINS_UPDATED', from: 'host_0', data: { players: S.players } })
+  },
+
+  // --- Player ---
+  goJoin() {
+    S.role = 'player'
+    page('page-player-join')
+    setTimeout(() => $('join-input')?.focus(), 300)
+  },
+
+  playerJoin() {
+    const input = $('join-input')
+    const roomId = input.value.trim().toUpperCase()
+    if (roomId.length < 6) { toast('请输入完整的房间号'); return }
+
+    // In a real app, this would validate against the host
+    // For BroadcastChannel demo: send join request
+    S.room = { id: roomId, status: 'waiting', maxPlayers: 6, round: 0 }
+    S.playerId = Math.floor(Math.random() * 5) + 2 // 2-6
+    S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true }]
+    // We don't know the actual players; request from host
+    page('page-player-board')
+    $('player-label').textContent = `🎭 ${S.playerId} 号玩家`
+    render()
+
+    // Ask host for state
+    broadcast({ type: 'PLAYER_JOINED', from: 'player_' + S.playerId, data: {
+      roomId, playerId: S.playerId, nickname: '玩家' + S.playerId
+    }})
+    // The host will respond with ROOM_STATE, which updates our player list
+
+    // Fallback: if no host responds within 2s, show what we know
+    setTimeout(() => {
+      if (S.players.filter(p => p.joined).length <= 1) {
+        // Request full state
+        broadcast({ type: 'ROOM_STATE_REQUEST', from: 'player_' + S.playerId, data: { roomId } })
+      }
+      render()
+    }, 500)
+  },
+
+  playerHeart() {
+    broadcast({ type: 'HEART', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: '玩家' + S.playerId } })
+    toast('❤️ 暖心已发送！')
+  },
+
+  playerSpark() {
+    broadcast({ type: 'SPARK', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: '玩家' + S.playerId } })
+    toast('🔥 火花已发送！')
+  }
+}
+
+// ============================================================
+// Initialize
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  // Check URL params
+  const params = new URLSearchParams(window.location.search)
+  const role = params.get('role')
+  const id = params.get('id')
+  const room = params.get('room')
+
+  if (role === 'host') {
+    App.goHost()
+    if (id) $('player-label').textContent = `🎤 主持人 (${id})`
+  } else if (role === 'player' && id) {
+    S.role = 'player'
+    S.playerId = parseInt(id) || 1
+    S.room = { id: room || 'UNKNOWN', status: 'waiting', maxPlayers: 6, round: 0 }
+    page('page-player-board')
+    $('player-label').textContent = `🎭 ${S.playerId} 号玩家`
+    render()
+    if (room) {
+      broadcast({ type: 'PLAYER_JOINED', from: 'player_' + S.playerId, data: {
+        roomId: room, playerId: S.playerId, nickname: '玩家' + S.playerId
+      }})
+    }
+  } else {
+    // Default: entry page
+    page('page-entry')
+  }
+})
+
+// ============================================================
+// Keyboard shortcut
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const joinInput = $('join-input')
+    if (joinInput && document.activeElement === joinInput) {
+      App.playerJoin()
+    }
+  }
+})
+</script>
+</body>
+</html>
