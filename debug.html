@@ -3,217 +3,332 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三六局 — 调试监控</title>
+<title>三六局 — 上帝视角监控</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
-  :root { --bg:#0D1117; --card:#161B22; --border:#30363D; --text:#C9D1D9; --text2:#8B949E; --green:#3FB950; --red:#F85149; --yellow:#D29922; --blue:#58A6FF; --purple:#BC8CFF; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; background:var(--bg); color:var(--text); padding:16px; font-size:12px; }
-  h1 { font-size:16px; margin-bottom:16px; color:var(--blue); }
-  .panel { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px; }
-  .panel h2 { font-size:13px; color:var(--text2); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
-  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
-  .dot-live { background:var(--green); animation:pulse 2s infinite; }
-  .dot-dead { background:var(--red); }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-  .row { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(48,54,61,.5); }
-  .row .k { color:var(--text2); }
-  .row .v { color:var(--text); max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .log-item { padding:3px 6px; margin:2px 0; border-radius:3px; font-size:11px; display:flex; gap:8px; }
-  .log-msg  { background:rgba(88,166,255,.08); }
-  .log-err  { background:rgba(248,81,73,.1); color:var(--red); }
-  .log-sys  { background:rgba(61,130,80,.08); color:var(--green); }
-  .log-time { color:var(--text2); min-width:70px; }
-  .log-type { font-weight:700; min-width:120px; }
-  .log-from { color:var(--yellow); min-width:70px; }
-  .log-data { color:var(--text2); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .heat-bar { height:6px; background:var(--border); border-radius:3px; margin:2px 0; }
-  .heat-bar div { height:100%; border-radius:3px; transition:width .5s; }
-  .controls { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
-  .controls input, .controls button { padding:6px 10px; border-radius:4px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:inherit; font-size:12px; }
-  .controls button { cursor:pointer; }
-  .controls button:hover { background:var(--border); }
-  #state-json { max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all; font-size:11px; color:var(--text2); }
-  .badge { padding:1px 6px; border-radius:10px; font-size:10px; font-weight:700; }
-  .b-ok { background:rgba(63,185,80,.15); color:var(--green); }
-  .b-warn { background:rgba(210,153,34,.15); color:var(--yellow); }
+:root{--bg:#0D1117;--card:#161B22;--border:#30363D;--text:#C9D1D9;--t2:#8B949E;--g:#3FB950;--r:#F85149;--y:#D29922;--b:#58A6FF;--p:#BC8CFF}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Mono','Consolas',monospace;background:var(--bg);color:var(--text);padding:20px;font-size:12px}
+h1{font-size:18px;margin-bottom:4px;color:var(--b)}
+h1 span{color:var(--t2);font-size:12px;font-weight:400}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:16px}
+@media(max-width:1200px){.grid{grid-template-columns:1fr 1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px}
+.panel h2{font-size:12px;color:var(--t2);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.dot-ok{background:var(--g)}
+.dot-warn{background:var(--y);animation:pulse 1.5s infinite}
+.dot-err{background:var(--r);animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.alert{padding:4px 8px;margin:3px 0;border-radius:3px;font-size:11px}
+.alert-warn{background:rgba(210,153,34,.1);color:var(--y);border-left:3px solid var(--y)}
+.alert-err{background:rgba(248,81,73,.1);color:var(--r);border-left:3px solid var(--r)}
+.alert-ok{background:rgba(63,185,80,.1);color:var(--g);border-left:3px solid var(--g)}
+.row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(48,54,61,.3)}
+.row .k{color:var(--t2)} .row .v{text-align:right}
+.bar{height:4px;background:var(--border);border-radius:2px;margin:2px 0}
+.bar div{height:100%;border-radius:2px}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.controls input,.controls button{padding:6px 12px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;font-size:12px}
+.controls button{cursor:pointer}.controls button:hover{background:var(--border)}
+.controls input{width:120px}
+.timeline{max-height:200px;overflow-y:auto}
+.tl-item{display:flex;gap:8px;padding:3px 0;font-size:11px;border-bottom:1px solid rgba(48,54,61,.2)}
+.tl-time{color:var(--t2);min-width:70px}
+.tl-icon{min-width:20px;text-align:center}
+.tl-text{flex:1;color:var(--t2)}
+.tl-text b{color:var(--text)}
+.stats{display:flex;gap:12px;flex-wrap:wrap}
+.stat{text-align:center;min-width:50px}
+.stat .n{font-size:18px;font-weight:700}
+.stat .l{font-size:10px;color:var(--t2)}
+#alerts{max-height:300px;overflow-y:auto}
+.aq-list{max-height:150px;overflow-y:auto}
+.aq-item{font-size:11px;padding:3px 0;border-bottom:1px solid rgba(48,54,61,.2);display:flex;gap:6px}
+.aq-round{color:var(--y);min-width:30px}
+.aq-level{min-width:24px;font-weight:700}
+.aq-text{flex:1}
+.aq-check{min-width:16px;text-align:center}
 </style>
 </head>
 <body>
 
-<h1>🔍 三六局 调试监控</h1>
+<h1>🦊 三六局 上帝视角 <span>— 全维度实时审计</span></h1>
 
 <div class="controls">
-  <span style="color:var(--text2);">房间号:</span>
-  <input id="room-input" placeholder="输入房间号" maxlength="6" style="width:120px;">
-  <button onclick="joinDebug()">监听房间</button>
-  <button onclick="leaveDebug()">断开</button>
-  <span style="margin-left:16px;">状态:</span>
-  <span id="conn-status"><span class="dot dot-dead"></span> 未连接</span>
-  <span id="msg-count" style="color:var(--text2);margin-left:16px;">消息: 0</span>
+  <span style="color:var(--t2)">房间:</span>
+  <input id="room-input" placeholder="房间号" maxlength="6">
+  <button onclick="connect()">监听</button>
+  <button onclick="disconnect()">断开</button>
+  <span id="conn-badge" style="color:var(--r)">● 未连接</span>
+  <span style="color:var(--t2);margin-left:8px">消息:</span><span id="msg-n" style="font-weight:700">0</span>
+  <span style="color:var(--t2);margin-left:8px">异常:</span><span id="alert-n" style="font-weight:700;color:var(--y)">0</span>
+  <button onclick="document.getElementById('alerts').innerHTML='';document.getElementById('alert-n').textContent='0'" style="margin-left:auto;font-size:10px;">清空告警</button>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+<div class="stats" style="margin-bottom:12px">
+  <div class="stat"><div class="n" id="s-msgs">0</div><div class="l">总消息</div></div>
+  <div class="stat"><div class="n" id="s-players">0</div><div class="l">玩家</div></div>
+  <div class="stat"><div class="n" id="s-round">-</div><div class="l">当前轮</div></div>
+  <div class="stat"><div class="n" id="s-heat">0</div><div class="l">平均热度</div></div>
+  <div class="stat"><div class="n" id="s-questions">0</div><div class="l">出题数</div></div>
+  <div class="stat"><div class="n" id="s-latency">-</div><div class="l">消息延迟</div></div>
+</div>
 
+<div class="grid">
+
+  <!-- 1. 规则引擎 -->
+  <div class="panel">
+    <h2><span class="dot" id="rule-dot"></span>⚖️ 规则引擎</h2>
+    <div class="row"><span class="k">状态机</span><span class="v" id="r-state">等待中…</span></div>
+    <div class="row"><span class="k">玩家人数</span><span class="v" id="r-players">-</span></div>
+    <div class="row"><span class="k">最少3人开局</span><span class="v" id="r-min3">-</span></div>
+    <div class="row"><span class="k">轮次递进</span><span class="v" id="r-prog">-</span></div>
+    <div class="row"><span class="k">同时只1题</span><span class="v" id="r-qtimer">-</span></div>
+    <div class="row"><span class="k">投票需全员</span><span class="v" id="r-vall">-</span></div>
+  </div>
+
+  <!-- 2. AI 出题审计 -->
+  <div class="panel">
+    <h2>🤖 AI 出题审计</h2>
+    <div class="row"><span class="k">已出题</span><span class="v" id="ai-total">0 (AI: 0)</span></div>
+    <div class="row"><span class="k">深度匹配</span><span class="v" id="ai-depth">-</span></div>
+    <div class="row"><span class="k">重复检测</span><span class="v" id="ai-dup">-</span></div>
+    <div class="row"><span class="k">字数合规</span><span class="v" id="ai-len">-</span></div>
+    <div class="aq-list" id="ai-questions"></div>
+  </div>
+
+  <!-- 3. 评分系统 -->
+  <div class="panel">
+    <h2>📊 评分系统</h2>
+    <div class="row"><span class="k">热度总和</span><span class="v" id="sc-total">0</span></div>
+    <div class="row"><span class="k">热度分布</span><span class="v" id="sc-dist">-</span></div>
+    <div class="row"><span class="k">嫉妒计算</span><span class="v" id="sc-jeal">-</span></div>
+    <div class="row"><span class="k">投票公正</span><span class="v" id="sc-vote">-</span></div>
+    <div class="row"><span class="k">暖心值分布</span><span class="v" id="sc-coins">-</span></div>
+  </div>
+
+  <!-- 4. 同步健康 -->
+  <div class="panel">
+    <h2>📡 同步健康</h2>
+    <div class="row"><span class="k">频道状态</span><span class="v" id="sync-ch">-</span></div>
+    <div class="row"><span class="k">消息类型数</span><span class="v" id="sync-types">-</span></div>
+    <div class="row"><span class="k">ROOM_STATE 频率</span><span class="v" id="sync-rs">-</span></div>
+    <div class="row"><span class="k">未响应请求</span><span class="v" id="sync-miss">-</span></div>
+    <div class="row"><span class="k">消息延迟(ms)</span><span class="v" id="sync-lat">-</span></div>
+  </div>
+
+  <!-- 5. 告警面板 -->
   <div class="panel" style="grid-column:1/-1;">
-    <h2>📨 消息日志</h2>
-    <div id="log" style="max-height:300px;overflow-y:auto;"></div>
+    <h2>🚨 实时告警 <span id="alert-count" style="color:var(--y)">0</span></h2>
+    <div id="alerts"><span style="color:var(--t2)">连接后开始监控…</span></div>
   </div>
 
-  <div class="panel">
-    <h2>🎮 游戏状态</h2>
-    <div id="state">
-      <div class="row"><span class="k">角色</span><span class="v" id="st-role">-</span></div>
-      <div class="row"><span class="k">房间</span><span class="v" id="st-room">-</span></div>
-      <div class="row"><span class="k">轮次</span><span class="v" id="st-round">-</span></div>
-      <div class="row"><span class="k">计时</span><span class="v" id="st-timer">-</span></div>
-      <div class="row"><span class="k">题目</span><span class="v" id="st-question">-</span></div>
-      <div class="row"><span class="k">投票</span><span class="v" id="st-vote">-</span></div>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>👥 玩家列表 & 热度</h2>
-    <div id="players"></div>
-  </div>
-
-  <div class="panel">
-    <h2>💕 好感 / 😈 嫉妒</h2>
-    <div id="social"></div>
-  </div>
-
+  <!-- 6. 事件时间线 -->
   <div class="panel" style="grid-column:1/-1;">
-    <h2>📋 完整 State JSON</h2>
-    <div id="state-json">等待连接…</div>
+    <h2>⏱️ 事件时间线</h2>
+    <div class="timeline" id="timeline"><span style="color:var(--t2)">等待事件…</span></div>
   </div>
 
 </div>
 
 <script>
-const SB_URL = 'https://qrqhooyjbynicwycttfi.supabase.co'
-const SB_KEY = 'sb_publishable_LhnO7BuftYRFwignp2fGtA_m_c0Gkxl'
-let sb = null, channel = null, msgCount = 0, lastState = {}
+const SB_URL='https://qrqhooyjbynicwycttfi.supabase.co'
+const SB_KEY='sb_publishable_LhnO7BuftYRFwignp2fGtA_m_c0Gkxl'
+let sb=null,channel=null,session={msgs:0,alerts:[],questions:[],timeline:[],history:{rounds:[]},state:{},lastMsgTime:0}
 
-function getSB() {
-  if (!sb && window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY)
-  return sb
-}
+function getSB(){if(!sb&&window.supabase)sb=window.supabase.createClient(SB_URL,SB_KEY);return sb}
 
-function log(type, msg) {
-  msgCount++
-  document.getElementById('msg-count').textContent = '消息: ' + msgCount
-  const el = document.getElementById('log')
-  const time = new Date().toLocaleTimeString()
-  const cls = type === 'ERROR' ? 'log-err' : type === 'SYSTEM' ? 'log-sys' : 'log-msg'
-  const dataStr = typeof msg.data === 'object' ? JSON.stringify(msg.data).slice(0, 100) : String(msg.data || '').slice(0, 100)
-  el.innerHTML += `<div class="log-item ${cls}">
-    <span class="log-time">${time}</span>
-    <span class="log-type">${msg.type || type}</span>
-    <span class="log-from">${msg.from || '-'}</span>
-    <span class="log-data">${dataStr}</span>
-  </div>`
-  el.scrollTop = el.scrollHeight
-  // Keep only last 100
-  if (el.children.length > 100) el.removeChild(el.firstChild)
-}
+// --- Audit Rules ---
+const L1_KW=['旅行','音乐','电影','宠物','美食','兴趣','季节','动画','歌曲','天气','运动','下厨','照片','手机','购物']
+const L2_KW=['朋友','信任','梦想','感动','骄傲','欣赏','家人','建议','关系','陪伴','改观','角色','习惯','感谢','主动']
+const L3_KW=['孤独','哭','秘密','害怕','误解','遗憾','焦虑','愧疚','伤害','放弃','自卑','示弱','脆弱','生气']
+const L4_KW=['生命','意义','自由','命运','灵魂','死亡','价值观','改变','成长','内心','传承','幸福','选择','本质']
+function guessLevel(text){const q=text||'';let scores={L1:0,L2:0,L3:0,L4:0};L1_KW.forEach(w=>{if(q.includes(w))scores.L1++});L2_KW.forEach(w=>{if(q.includes(w))scores.L2++});L3_KW.forEach(w=>{if(q.includes(w))scores.L3++});L4_KW.forEach(w=>{if(q.includes(w))scores.L4++});const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];return best[1]>0?best[0]:null}
+function expectedLevel(round){return'L'+(round===1?1:round===2?'2-3':4)}
+function checkDepthMatch(q,round){const guessed=guessLevel(q);const exp=expectedLevel(round);if(!guessed)return'?';if(round===1&&['L1'].includes(guessed))return'✓';if(round===2&&['L1','L2','L3'].includes(guessed))return'✓';if(round===3&&['L3','L4'].includes(guessed))return'✓';return '✗ 预期'+exp+' 检测'+guessed}
+function checkDup(q){const similar=session.questions.filter(x=>{const a=x.text||'',b=q||'';if(!a||!b)return false;const overlap=a.split('').filter(c=>b.includes(c)).length;return overlap/Math.max(a.length,b.length)>.6});return similar.length>0?'⚠ 与第'+(session.questions.indexOf(similar[0])+1)+'题相似':'✓'}
+function checkLength(q){const len=(q||'').length;return len<8?'✗ 太短('+len+')':len>50?'⚠ 偏长('+len+')':'✓'}
 
-function updateState(s) {
-  lastState = s
-  const p = s.players || []
-  const joined = p.filter(x => x.joined)
-  document.getElementById('st-role').textContent = s.role || '-'
-  document.getElementById('st-room').textContent = s.room?.id + ' (' + (s.room?.status || '-') + ')' || '-'
-  document.getElementById('st-round').textContent = s.room?.round || '-'
-  const remain = s.game?.timerRunning ? Math.max(0, Math.ceil(((s.game?.timerEnd||0) - Date.now())/1000)) : '-'
-  document.getElementById('st-timer').innerHTML = remain + 's <span class="badge ' + (s.game?.timerRunning ? 'b-ok' : 'b-warn') + '">' + (s.game?.timerRunning ? '运行' : '停止') + '</span>'
-  document.getElementById('st-question').textContent = (s.game?.question || '无') + (s.game?.questionLevel ? ' [L' + s.game.questionLevel + ']' : '')
-  document.getElementById('st-vote').textContent = s.vote ? (s.vote.type + (s.vote.open ? ' 投票中' : ' 已结束')) : '无'
+function alert(level,msg){session.alerts.push({time:Date.now(),level,msg});renderAlerts()}
+function timeline(icon,text){session.timeline.push({time:Date.now(),icon,text});if(session.timeline.length>200)session.timeline.shift();renderTimeline()}
 
-  // Players
-  let ph = ''
-  joined.forEach(p => {
-    ph += `<div style="margin-bottom:4px;">${p.avatar||'🎭'} <b>${p.nickname||('玩家'+p.id)}</b> ${p.isHost?'👑':''} 🪙${p.coins||0}`
-    if (s.heat) {
-      joined.forEach(p2 => {
-        if (p.id < p2.id) {
-          const k = (p.id < p2.id) ? (p.id + '-' + p2.id) : (p2.id + '-' + p.id)
-          const h = s.heat[k] || 0
-          if (h > 0) {
-            const color = h > 70 ? 'var(--red)' : h > 40 ? 'var(--yellow)' : 'var(--green)'
-            ph += `<div class="heat-bar"><div style="width:${h}%;background:${color};"></div></div>`
-            ph += `<span style="font-size:10px;color:var(--text2);">${p.nickname||p.id} ↔ ${p2.nickname||p2.id}: ${h}</span>`
-          }
-        }
-      })
+function audit(msg){
+  const {type,from,data}=msg
+  session.msgs++
+  // Track latency
+  if(msg.ts){const latency=Date.now()-msg.ts;if(latency>2000)alert('warn','消息延迟 '+latency+'ms: '+type);document.getElementById('sync-lat').textContent=latency+'ms'}
+  // Count message types
+  if(!session.msgTypes)session.msgTypes={}
+  session.msgTypes[type]=(session.msgTypes[type]||0)+1
+
+  // Rule checks
+  if(type==='GAME_STARTED'){
+    const joined=(data?.players||session.state.players||[]).filter(p=>p.joined).length
+    if(joined<3)alert('err','开局时只有'+joined+'人，不满足最少3人规则')
+  }
+  if(type==='QUESTION'){
+    const q=data.question||''
+    session.questions.push({round:session.state.room?.round||'?',level:data.level||'?',text:q})
+    const depthOk=checkDepthMatch(q,session.state.room?.round||0)
+    const dupOk=checkDup(q)
+    const lenOk=checkLength(q)
+    if(depthOk.startsWith('✗'))alert('warn','题目深度不匹配: '+q.slice(0,30)+'… ('+depthOk+')')
+    if(dupOk.startsWith('⚠'))alert('warn','题目疑似重复: '+q.slice(0,30)+'… '+dupOk)
+    if(lenOk.startsWith('✗'))alert('warn','题目字数异常: '+lenOk+' — '+q.slice(0,30))
+  }
+  if(type==='ROUND_CHANGED'){
+    const newR=data.round,oldR=session.state.room?.round||0
+    if(newR!==oldR+1&&newR!==1)alert('warn','轮次跳跃异常: '+oldR+'→'+newR)
+  }
+  if(type==='VOTE_RESULT'){
+    const vote=session.state.vote
+    if(vote){
+      const voted=Object.keys(vote.results||{}).length
+      const total=(session.state.players||[]).filter(p=>p.joined).length
+      if(voted<total)alert('warn','投票未全员参与: '+voted+'/'+total)
     }
-    ph += '</div>'
+  }
+  if(type==='HEART'||type==='SPARK'){
+    if(session.state.room?.status!=='playing')alert('warn',type+' 在非游戏状态发送')
+  }
+  if(type==='ROOM_STATE'&&data){
+    const prevStatus=session.state.room?.status
+    const newStatus=data.room?.status
+    if(prevStatus==='playing'&&newStatus==='waiting')alert('err','状态机异常: playing→waiting')
+    if(newStatus==='playing'&&(data.players||[]).filter(p=>p.joined).length<3)alert('warn','开始游戏但不足3人')
+  }
+  if(type==='HEAT_UPDATED'&&data.heat){
+    const vals=Object.values(data.heat)
+    if(vals.some(v=>v>100))alert('err','热度值超限 >100')
+    if(vals.some(v=>v<0))alert('err','热度值为负')
+  }
+  if(type==='CHOICE_PICK'){
+    if(session.state.room?.round!==2)alert('warn','二选一在非配对轮被触发')
+  }
+  if(type==='STEAL_ATTEMPT'){
+    if(session.state.room?.round!==2)alert('warn','挖墙脚在非配对轮被触发')
+  }
+}
+
+function renderAll(){
+  const s=session.state,p=s.players||[],joined=p.filter(x=>x.joined),h=s.heat||{}
+  document.getElementById('msg-n').textContent=session.msgs
+  document.getElementById('alert-n').textContent=session.alerts.length
+  document.getElementById('s-msgs').textContent=session.msgs
+  document.getElementById('s-players').textContent=joined.length
+  document.getElementById('s-round').textContent=s.room?.round||'-'
+  const hVals=Object.values(h);document.getElementById('s-heat').textContent=hVals.length?Math.round(hVals.reduce((a,b)=>a+b,0)/hVals.length):0
+  document.getElementById('s-questions').textContent=session.questions.length
+  // Rules
+  const status=s.room?.status||'-'
+  document.getElementById('r-state').textContent=status
+  document.getElementById('r-players').textContent=joined.length+'/'+(s.room?.maxPlayers||6)
+  document.getElementById('r-min3').innerHTML=joined.length>=3?'<span style="color:var(--g)">✓ 满足</span>':(status==='playing'?'<span style="color:var(--r)">✗ 不足</span>':'等待中')
+  document.getElementById('r-prog').textContent='轮次 '+s.room?.round+'/3'
+  document.getElementById('r-qtimer').innerHTML=s.game?.timerRunning?'<span style="color:var(--g)">计时中</span>':'闲置'
+  document.getElementById('r-vall').textContent=s.vote?((s.vote.open?'投票中':'已结束')+' '+Object.keys(s.vote.results||{}).length+'人投'):'无投票'
+  document.getElementById('rule-dot').className='dot '+(session.alerts.filter(a=>a.level==='err').length>0?'dot-err':'dot-ok')
+  // AI
+  const aiQs=session.questions.filter(q=>q.level==='AI')
+  document.getElementById('ai-total').textContent=session.questions.length+' 题 (AI: '+aiQs.length+')'
+  let aiD='',aiHtml=''
+  session.questions.slice(-6).forEach((q,i)=>{
+    const ok=checkDepthMatch(q.text,q.round)
+    aiD+=ok
+    const icon=ok.startsWith('✗')?'❌':ok.startsWith('⚠')?'⚠️':'✓'
+    aiHtml+=`<div class="aq-item"><span class="aq-round">轮${q.round}</span><span class="aq-level">${q.level}</span><span class="aq-text">${q.text.slice(0,30)}</span><span class="aq-check">${icon}</span></div>`
   })
-  document.getElementById('players').innerHTML = ph || '<span style="color:var(--text2)">暂无玩家</span>'
-
-  // Social
-  let sh = ''
-  if (s.crush) {
-    sh += '<div style="margin-bottom:8px;"><b>好感:</b> '
-    Object.entries(s.crush).forEach(([pid, targets]) => {
-      sh += `玩家${pid}→[${targets.join(',')}] `
-    })
-    sh += '</div>'
-  }
-  if (s.jealousy) {
-    sh += '<div><b>嫉妒:</b> '
-    Object.entries(s.jealousy).forEach(([pid, score]) => {
-      sh += `玩家${pid}: ${score} `
-    })
-    sh += '</div>'
-  }
-  document.getElementById('social').innerHTML = sh || '<span style="color:var(--text2)">无数据</span>'
-
-  document.getElementById('state-json').textContent = JSON.stringify(s, null, 2)
+  document.getElementById('ai-depth').textContent=aiD||'-'
+  document.getElementById('ai-dup').textContent=session.questions.length>1?checkDup(session.questions[session.questions.length-1]?.text||''):'-'
+  document.getElementById('ai-len').textContent=session.questions.length?checkLength(session.questions[session.questions.length-1]?.text||''):'-'
+  document.getElementById('ai-questions').innerHTML=aiHtml||'<span style="color:var(--t2)">-</span>'
+  // Scoring
+  document.getElementById('sc-total').textContent=hVals.reduce((a,b)=>a+b,0)
+  const maxH=Math.max(...hVals,1),minH=Math.min(...hVals,0)
+  document.getElementById('sc-dist').textContent='最高'+maxH+' 最低'+minH+' '+(maxH-minH>80?'⚠ 差距大':'✓')
+  document.getElementById('sc-jeal').textContent=Object.values(s.jealousy||{}).join(',')||'-'
+  document.getElementById('sc-vote').textContent=s.vote?.winner?'结果: '+s.vote.winner.candidate?.label:'-'
+  document.getElementById('sc-coins').textContent=joined.map(p=>p.coins||0).join(',')||'-'
+  // Sync
+  document.getElementById('sync-ch').textContent=channel?'已连接':'未连接'
+  document.getElementById('sync-types').textContent=Object.keys(session.msgTypes||{}).length
+  // Timeline stats
+  const rsMsgs=session.msgTypes?.['ROOM_STATE']||0
+  document.getElementById('sync-rs').textContent=rsMsgs+' (正常)'+(rsMsgs>50?' ⚠ 高频':'')
 }
 
-function handleMessage(msg) {
-  const { type, from, data } = msg
-  if (from && from.startsWith('debug')) return
-  log('MSG', msg)
-
-  if (type === 'ROOM_STATE' && data) {
-    updateState({ role: 'observer', room: data.room, players: data.players, game: data.game, heat: data.heat, crush: data.crush, jealousy: data.jealousy, vote: data.vote || null, roundAnswers: data.roundAnswers || null, penalty: data.penalty || null })
-  }
+function renderAlerts(){
+  const el=document.getElementById('alerts')
+  const list=session.alerts.slice(-50)
+  el.innerHTML=list.length?list.map(a=>{
+    const time=new Date(a.time).toLocaleTimeString()
+    const cls=a.level==='err'?'alert-err':'alert-warn'
+    return `<div class="alert ${cls}"><b>${time}</b> ${a.msg}</div>`
+  }).reverse().join(''):'<span style="color:var(--g)">✓ 无异常</span>'
+  document.getElementById('alert-count').textContent=session.alerts.length
+  document.getElementById('alert-n').textContent=session.alerts.length
 }
 
-function joinDebug() {
-  const roomId = document.getElementById('room-input').value.trim()
-  if (!roomId) { alert('输入房间号'); return }
-  const client = getSB()
-  if (!client) { alert('Supabase SDK 未加载'); return }
-  if (channel) channel.unsubscribe()
-  channel = client.channel('room:' + roomId)
-  channel.on('broadcast', { event: 'msg' }, (payload) => handleMessage(payload.payload))
-  channel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      document.getElementById('conn-status').innerHTML = '<span class="dot dot-live"></span> 已连接'
-      log('SYSTEM', { type:'CONNECT', data:'Joined room:' + roomId })
+function renderTimeline(){
+  const el=document.getElementById('timeline')
+  const list=session.timeline.slice(-50)
+  el.innerHTML=list.length?list.map(t=>{
+    const time=new Date(t.time).toLocaleTimeString()
+    return `<div class="tl-item"><span class="tl-time">${time}</span><span class="tl-icon">${t.icon}</span><span class="tl-text">${t.text}</span></div>`
+  }).reverse().join(''):'<span style="color:var(--t2)">-</span>'
+}
+
+let tlSeq=0
+function handleMessage(msg){
+  const{type,from,data}=msg
+  if(from&&from.startsWith('debug'))return
+  session.lastMsgTime=Date.now()
+
+  // Capture state from ROOM_STATE
+  if(type==='ROOM_STATE'&&data){
+    session.state={role:'observer',room:data.room,players:data.players,game:data.game,heat:data.heat||{},crush:data.crush||{},jealousy:data.jealousy||{},vote:data.vote||null,roundAnswers:data.roundAnswers||null,penalty:data.penalty||null}
+  }
+  // Patch state from other messages
+  if(type==='QUESTION'&&data){if(!session.state.game)session.state.game={};session.state.game.question=data.question;session.state.game.questionLevel=data.level;session.state.game.timerRunning=true}
+  if(type==='TIMER_TICK'&&data){if(!session.state.game)session.state.game={};session.state.game.timerRunning=data.timerRunning}
+  if(type==='VOTE_START'&&data){session.state.vote={type:data.vtype,candidates:data.candidates,open:true,results:{}}}
+  if(type==='VOTE_CAST'&&data&&session.state.vote){session.state.vote.results[data.playerId]=data.choice}
+
+  audit(msg)
+  renderAll()
+
+  // Timeline
+  tlSeq++
+  const icons={ROOM_STATE:'📡',PLAYER_JOINED:'🚪',GAME_STARTED:'▶️',QUESTION:'🎲',HEART:'❤️',SPARK:'🔥',CHOICE_PICK:'🔄',HEAT_UPDATED:'🌡️',JEALOUSY_UPDATED:'😈',STEAL_ATTEMPT:'🗡️',VOTE_START:'📊',VOTE_CAST:'✏️',VOTE_RESULT:'🏆',ROUND_CHANGED:'⏭️',GAME_ENDED:'🏁',AI_SAY:'🤖',COINS_UPDATED:'🪙',TIMER_TICK:'⏰'}
+  const icon=icons[type]||'📨'
+  const fromName=from||'?'
+  const summary=type==='ROOM_STATE'?(data?.room?.status||'')+' 玩家'+(data?.players?.filter(p=>p.joined)?.length||0):type==='QUESTION'?'L'+data?.level+' '+(data?.question||'').slice(0,25):type==='HEART'||type==='SPARK'?fromName+' → +'+(type==='HEART'?'10':'20'):type==='VOTE_CAST'?'玩家'+data?.playerId+' 投票':type==='VOTE_RESULT'?'胜出: '+data?.winner?.candidate?.label:type==='GAME_STARTED'?'轮'+data?.round:type==='ROUND_CHANGED'?'→ 轮'+data?.round:''
+  timeline(icon,'<b>'+type+'</b> '+summary)
+}
+
+function connect(){
+  const roomId=document.getElementById('room-input').value.trim()
+  if(!roomId){alert('输入房间号');return}
+  const client=getSB()
+  if(!client){alert('Supabase SDK 未加载');return}
+  if(channel)channel.unsubscribe()
+  channel=client.channel('room:'+roomId)
+  channel.on('broadcast',{event:'msg'},payload=>handleMessage(payload.payload))
+  channel.subscribe(status=>{
+    if(status==='SUBSCRIBED'){
+      document.getElementById('conn-badge').innerHTML='<span style="color:var(--g)">● 已连接</span>'
+      timeline('🔌','<b>已连接房间 '+roomId+'</b>')
     }
-    if (status === 'CHANNEL_ERROR') {
-      document.getElementById('conn-status').innerHTML = '<span class="dot dot-dead"></span> 错误'
-      log('ERROR', { type:'CHANNEL_ERROR', data:status })
-    }
+    if(status==='CHANNEL_ERROR'){alert('err','频道错误: '+status);timeline('❌','<b>频道错误</b>')}
   })
 }
 
-function leaveDebug() {
-  if (channel) { channel.unsubscribe(); channel = null }
-  document.getElementById('conn-status').innerHTML = '<span class="dot dot-dead"></span> 未连接'
-  log('SYSTEM', { type:'DISCONNECT', data:'Left room' })
-}
+function disconnect(){if(channel){channel.unsubscribe();channel=null}document.getElementById('conn-badge').innerHTML='<span style="color:var(--r)">● 未连接</span>'}
 
-// Auto-join from URL param
-const params = new URLSearchParams(window.location.search)
-const room = params.get('room')
-if (room) {
-  document.getElementById('room-input').value = room
-  setTimeout(joinDebug, 500)
-}
+const params=new URLSearchParams(window.location.search)
+const room=params.get('room')
+if(room){document.getElementById('room-input').value=room;setTimeout(connect,500)}
 </script>
 </body>
 </html>
