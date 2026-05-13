@@ -700,11 +700,59 @@ const PENALTIES = {
       '给群聊发一个 5 元红包',
       '对在场最年长/资历最深的人鞠一躬'
     ]
+  },
+  drink: {
+    label: '喝酒', icon: '🍻',
+    items: [
+      '自罚一杯，并说出在场最欣赏的一个人',
+      '选一个人碰杯，对方喝半杯你喝一杯',
+      '左手边的人指定一种喝法（交杯/背手/不用手）',
+      '一口气喝完杯中酒，全场鼓掌',
+      '说一件你做过的丢脸事，说完大家举杯',
+      '和在场的某个人喝交杯酒',
+      '猜拳三局两胜，输的喝',
+      '用吸管喝酒，不许换气',
+      '蒙眼倒酒，倒多少喝多少',
+      '讲一个冷笑话，不笑的人喝'
+    ]
+  },
+  game: {
+    label: '小游戏', icon: '🎮',
+    items: [
+      '和右手边的人掰手腕，输的接受惩罚',
+      '头顶纸杯走直线，掉了重回起点',
+      '用身体摆出一个字母，让大家猜',
+      '闭眼画在场某人的肖像，大家猜是谁',
+      '在 20 秒内用身体比划让至少两人猜对一个词',
+      '拿三样随身物品即兴编一段 30 秒的故事',
+      '不许说「你我他」，坚持一分钟',
+      '跟着手机铃声即兴来一段舞蹈',
+      '和对面的人石头剪刀布，输的学动物叫',
+      '纸牌搭房子，30 秒内谁搭得高谁免罚'
+    ]
+  },
+  flirt: {
+    label: '暧昧', icon: '💕',
+    items: [
+      '选在场一个人，深情对视 15 秒不许笑',
+      '对左边的人说一句土味情话，对方笑了就再罚一个',
+      '公主抱在场体重最轻的人，坚持 10 秒',
+      '选一个人，用三种不同语气喊 TA 的名字',
+      '和对面的人十指相扣，保持到下一轮结束',
+      '模仿偶像剧桥段，对在场某人表白 30 秒',
+      '选一个人，喂 TA 吃/喝一口东西',
+      '用嘴撕一张纸巾递给右边的人，对方用嘴接住',
+      '壁咚在场任意一人，维持 10 秒',
+      '闭眼摸一个人的五官，猜猜是谁'
+    ]
   }
 }
 
 function drawPenaltyCandidates() {
-  return Object.entries(PENALTIES).map(([key, val]) => {
+  const entries = Object.entries(PENALTIES)
+  // Shuffle categories, pick 5 random ones
+  const shuffled = entries.sort(() => Math.random() - 0.5).slice(0, 5)
+  return shuffled.map(([key, val]) => {
     const item = val.items[Math.floor(Math.random() * val.items.length)]
     return { key, label: val.label, icon: val.icon, text: item }
   })
