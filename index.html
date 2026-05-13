@@ -808,7 +808,8 @@ async function callAI(prompt, temperature) {
     const resp = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(25000)
     })
     if (!resp.ok) return null
     const data = await resp.json()
@@ -1635,6 +1636,8 @@ const App = {
       const roundName = ROUND_NAMES[round] || ('第' + round + '轮')
       const names = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
       const prevDirs = S.roundAnswers ? Object.values(S.roundAnswers).map(d => d.direction).join('、') : ''
+      const aiBtn = $('console-ai-draw-btn')
+      if (aiBtn) { aiBtn.textContent = '⏳ AI思考中…'; aiBtn.disabled = true }
       callAI(`三六局游戏第${round}轮「${roundName}」。在场玩家：${names}。${prevDirs ? '前几轮大家的关注方向：' + prevDirs + '。请避免重复相似话题。' : ''}
 三六局的36问按心理学"渐进式自我披露"设计：
 - 轮一破冰：轻松日常，消除陌生感
@@ -1642,6 +1645,7 @@ const App = {
 - 轮三默契：灵魂深度对话，检验默契
 
 请生成一道「${roundName}」级别的问题。可以天马行空但要符合这轮的深度。只返回问题本身，不加前缀，不超过30字。`, 0.9).then(q => {
+        if (aiBtn) { aiBtn.textContent = '🤖 AI出题'; aiBtn.disabled = false }
         if (q) {
           S.game.question = q.trim()
           S.game.questionLevel = 'AI'
@@ -1654,6 +1658,9 @@ const App = {
           render()
           startTimerUI()
           broadcast({ type: 'QUESTION', from: 'host_0', data: { question: q.trim(), level: 'AI', timerRemaining: 30, timerStarted: Date.now(), choiceQ: S.game.choiceQ || null } })
+        } else {
+          toast('AI 超时，改用题库出题')
+          App.hostDrawQuestion(false)
         }
       })
       return
@@ -1860,7 +1867,17 @@ const App = {
     broadcast({ type: 'HEART', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: nm } })
     toast('❤️ 暖心已发送！')
     const btn = $('player-heart-btn')
-    if (btn) { btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash') }
+    if (btn) {
+      btn.classList.remove('flash')
+      void btn.offsetWidth
+      btn.classList.add('flash')
+      // Visual feedback: briefly change the emoji
+      const small = btn.querySelector('small')
+      if (small) { const orig = small.textContent; small.textContent = '已发送!'; setTimeout(() => { small.textContent = orig }, 1200) }
+    }
+    // Update local heat count immediately
+    if (!S._heartCount) S._heartCount = 0
+    S._heartCount++
   },
 
   playerSpark() {
@@ -1868,7 +1885,13 @@ const App = {
     broadcast({ type: 'SPARK', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: nm } })
     toast('🔥 火花已发送！')
     const btn = $('player-spark-btn')
-    if (btn) { btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash') }
+    if (btn) {
+      btn.classList.remove('flash')
+      void btn.offsetWidth
+      btn.classList.add('flash')
+      const small = btn.querySelector('small')
+      if (small) { const orig = small.textContent; small.textContent = '已发送!'; setTimeout(() => { small.textContent = orig }, 1200) }
+    }
   },
 
   playerPickChoice(choice) {

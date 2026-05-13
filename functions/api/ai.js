@@ -55,7 +55,8 @@ export async function onRequest(context) {
           { role: 'user', content: prompt }
         ],
         max_tokens: 300,
-        temperature: temperature ?? 0.8
+        temperature: temperature ?? 0.8,
+        thinking: { type: 'disabled' }
       })
     })
 
