@@ -24,7 +24,7 @@ export async function onRequest(context) {
     })
   }
 
-  const AI_BASE = 'http://ai.bigbigox.dpdns.org:3456/v1'
+  const AI_BASE = 'https://ai.bigbigox.dpdns.org/v1'
 
   const systemPrompt = `你是"三六局"（Sanliuju）的AI助手。三六局是一款线下聚会破冰游戏，灵感源自心理学家Arthur Aron的"36个问题让陌生人相爱"实验。游戏分3轮，每轮12题，共36题，通过渐进式自我披露增进参与者之间的亲密感和默契。
 
