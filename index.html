@@ -529,10 +529,20 @@ function handleMessage(msg) {
 
     case 'PLAYER_JOINED':
       if (S.role === 'host' && data.roomId === S.room?.id) {
-        S.players = data.players
+        const slot = S.players[data.playerId - 1]
+        if (slot) {
+          slot.joined = true
+          slot.nickname = slot.nickname || data.nickname || ('玩家' + data.playerId)
+        }
         flashNewJoins(S.players)
         broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game } })
         render()
+      }
+      break
+
+    case 'ROOM_STATE_REQUEST':
+      if (S.role === 'host' && data.roomId === S.room?.id) {
+        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game } })
       }
       break
 
