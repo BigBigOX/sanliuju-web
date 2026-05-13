@@ -468,18 +468,42 @@
 <div class="bg-orb bg-orb-2"></div>
 <div id="toast" class="toast"></div>
 
-<!-- ====== ENTRY PAGE ====== -->
+<!-- ====== NAME PICK PAGE ====== -->
 <div id="page-entry" class="page active">
   <div class="entry-hero">
     <div class="entry-logo">🦊</div>
     <div class="entry-title">三六局</div>
     <div class="entry-sub">线下聚会破冰游戏 · 3轮36问</div>
   </div>
+  <p class="hint">选择你的身份</p>
+  <div id="profile-list" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:20px;"></div>
+  <div class="entry-btns">
+    <button class="btn-big btn-join" onclick="App.showNewName()">✏️ 使用新名字</button>
+  </div>
+  <div id="new-name-form" style="display:none;margin-top:16px;">
+    <div class="input-row">
+      <input class="input" id="new-name-input" placeholder="输入你的名字" maxlength="8" autocomplete="off">
+    </div>
+    <p class="hint" style="margin-bottom:8px;">选一个头像</p>
+    <div class="avatar-picker" id="new-name-avatar-picker"></div>
+    <div class="actions" style="margin-top:12px;">
+      <button class="btn btn-primary" onclick="App.saveNewProfile()">确认</button>
+      <button class="btn btn-ghost" onclick="App.hideNewName()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== ROLE PICK PAGE ====== -->
+<div id="page-role-pick" class="page">
+  <div class="entry-hero" style="padding-top:32px;">
+    <div class="entry-logo" style="font-size:40px;" id="role-avatar"></div>
+    <div class="entry-title" style="font-size:22px;" id="role-name"></div>
+  </div>
   <div class="entry-btns">
     <button class="btn-big btn-host" onclick="App.goHost()">🎤 主持聚会</button>
     <button class="btn-big btn-join"  onclick="App.goJoin()">🎭 加入聚会</button>
   </div>
-  <p class="hint" style="margin-top:32px;">在同一浏览器打开多个标签页<br>分别用不同角色进入即可测试同步</p>
+  <button class="btn btn-ghost" style="margin-top:16px;" onclick="App.switchProfile()">🔄 切换身份</button>
 </div>
 
 <!-- ====== HOST: WAITING ROOM ====== -->
@@ -537,13 +561,12 @@
 <!-- ====== PLAYER: JOIN ====== -->
 <div id="page-player-join" class="page">
   <h2 style="font-size:20px;text-align:center;margin-bottom:16px;">🎭 加入聚会</h2>
-  <p class="hint" style="margin-bottom:14px;">选择一个你的头像</p>
-  <div class="avatar-picker" id="avatar-picker"></div>
+  <p class="hint" id="join-profile-label"></p>
   <div class="input-row">
     <input class="input" id="join-input" placeholder="输入房间号" maxlength="6" autocomplete="off">
   </div>
   <div class="actions">
-    <button class="btn btn-primary" id="join-btn" disabled onclick="App.playerJoin()">加入房间</button>
+    <button class="btn btn-primary" id="join-btn" onclick="App.playerJoin()">加入房间</button>
     <button class="btn btn-ghost" onclick="App.goEntry()">返回</button>
   </div>
 </div>
@@ -576,6 +599,7 @@
     <div class="board-actions">
       <button class="heart-btn" id="player-heart-btn" onclick="App.playerHeart()">❤️<br><small>暖心</small></button>
       <button class="spark-btn" id="player-spark-btn" onclick="App.playerSpark()" style="display:none;">🔥<br><small>火花</small></button>
+      <button class="btn" id="player-steal-btn" onclick="App.playerSteal(0)" style="display:none;flex:1;padding:20px;border-radius:var(--radius);border:none;font-size:28px;cursor:pointer;background:#1C1917;color:#FBBF24;transition:transform .12s;">🗡️<br><small>挖墙脚</small></button>
     </div>
   </div>
 
@@ -689,23 +713,63 @@ const CHOICE_QS = [
 ]
 
 // ============================================================
+// Profile System (localStorage)
+// ============================================================
+const PROFILES_KEY = 'slj_profiles'
+function loadProfiles() { try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || [] } catch(_) { return [] } }
+function saveProfiles(list) { localStorage.setItem(PROFILES_KEY, JSON.stringify(list)) }
+function createProfile(name, avatar) {
+  return { id: 'p_' + Date.now(), name, avatar, customPenalties: [], createdAt: Date.now(), lastUsed: Date.now() }
+}
+function touchProfile(id) {
+  const list = loadProfiles()
+  const p = list.find(x => x.id === id)
+  if (p) { p.lastUsed = Date.now(); saveProfiles(list) }
+}
+
+function renderProfileList() {
+  const el = document.getElementById('profile-list')
+  if (!el) return
+  const list = loadProfiles()
+  if (list.length === 0) {
+    el.innerHTML = '<p class="hint">还没有身份记录，创建第一个吧</p>'
+    return
+  }
+  list.sort((a, b) => b.lastUsed - a.lastUsed)
+  el.innerHTML = list.map(p =>
+    `<div class="profile-chip" onclick="App.selectProfile('${p.id}')" style="
+      display:flex;flex-direction:column;align-items:center;gap:4px;
+      padding:14px 18px;background:var(--card);border-radius:var(--radius);
+      box-shadow:var(--shadow);cursor:pointer;transition:transform .15s;
+      min-width:80px;
+    " onmouseenter="this.style.transform='translateY(-3px)'" onmouseleave="this.style.transform=''">
+      <span style="font-size:32px;">${p.avatar}</span>
+      <span style="font-size:13px;font-weight:600;">${p.name}</span>
+    </div>`
+  ).join('')
+}
+
+// ============================================================
 // State
 // ============================================================
 const S = {
+  profile: null,    // current profile { id, name, avatar, customPenalties }
   role: null,       // 'host' | 'player'
   playerId: null,   // player number (1-6)
-  playerAvatar: null, // emoji avatar
   room: null,       // { id, status, maxPlayers, round }
   players: [],      // [{ id, nickname, joined, coins, isHost, avatar }]
   heat: {},         // { '1-3': 45, ... }
-  choiceResult: null, // player's choice in round 2 ('a' | 'b')
-  penalty: null,    // { key, label, icon, text } current penalty
+  crush: {},        // { playerId: [targetId, ...] }
+  jealousy: {},     // { playerId: score }
+  choiceResult: null,
+  penalty: null,
+  vote: null,       // { type:'penalty'|'heart', candidates:[], results:{}, open:bool }
   game: {
     question: null, questionLevel: null,
     timerEnd: null, timerRunning: false,
     pairs: null, sparks: {},
-    choiceQ: null,  // current choice question for round 2
-    choiceResults: {} // { playerId: 'a'|'b', ... }
+    choiceQ: null,
+    choiceResults: {}
   }
 }
 
@@ -816,7 +880,11 @@ function handleMessage(msg) {
     case 'SPARK':
       if (S.role === 'host') {
         toast(`${data.nickname || ('玩家' + data.playerId)} ${type === 'HEART' ? '❤️ 送出了暖心' : '🔥 送出了火花'}`)
-        // Build heat between sender and all other joined players
+        // Track crush: sender likes all other joined players (general warmth)
+        if (!S.crush[data.playerId]) S.crush[data.playerId] = []
+        S.players.filter(p => p.joined && p.id !== data.playerId).forEach(p => {
+          if (!S.crush[data.playerId].includes(p.id)) S.crush[data.playerId].push(p.id)
+        })
         const gain = type === 'HEART' ? 10 : 20
         S.players.filter(p => p.joined).forEach(p => {
           if (p.id !== data.playerId) {
@@ -829,11 +897,71 @@ function handleMessage(msg) {
       }
       break
 
+    case 'VOTE_START':
+      S.vote = { type: data.vtype, candidates: data.candidates, open: true, results: {} }
+      if (S.role === 'player') renderVotePanel()
+      if (S.role === 'host') renderVotePanel()
+      break
+
+    case 'VOTE_CAST':
+      if (S.role === 'host' && S.vote) {
+        S.vote.results[data.playerId] = data.choice
+        // Check if all joined players voted
+        const joined = S.players.filter(p => p.joined)
+        const allVoted = joined.every(p => p.id === 1 || S.vote.results[p.id] !== undefined)
+        if (allVoted) {
+          // Tally
+          const tally = {}
+          Object.values(S.vote.results).forEach(idx => { tally[idx] = (tally[idx] || 0) + 1 })
+          const winner = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]
+          S.vote.open = false
+          const w = parseInt(winner[0])
+          const cand = S.vote.candidates[w]
+          S.vote.winner = { index: w, candidate: cand, tally }
+          broadcast({ type: 'VOTE_RESULT', from: 'host_0', data: { winner: S.vote.winner } })
+        }
+        renderVotePanel()
+      }
+      break
+
+    case 'VOTE_RESULT':
+      if (S.vote) {
+        S.vote.open = false
+        S.vote.winner = data.winner
+        renderVotePanel()
+        if (S.vote.type === 'penalty' && S.vote.winner) {
+          S.penalty = { selected: S.vote.winner.candidate }
+          renderPenaltyDisplay()
+        }
+      }
+      break
+
+    case 'STEAL_ATTEMPT':
+      if (S.role === 'host') {
+        toast(`${data.playerId}号玩家发动了挖墙脚！`)
+        // Reduce heat for the targeted pair
+        const topPair = Object.entries(S.heat).sort((a, b) => b[1] - a[1])[0]
+        if (topPair) {
+          S.heat[topPair[0]] = Math.max(0, topPair[1] - 20)
+        }
+        broadcast({ type: 'HEAT_UPDATED', from: 'host_0', data: { heat: S.heat } })
+        renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
+      }
+      break
+
     case 'HEAT_UPDATED':
       if (S.role === 'player') {
         S.heat = data.heat
         renderFloatRoom('player-wait-room', S.players, S.room?.maxPlayers || 6, false)
       }
+      break
+
+    case 'JEALOUSY_UPDATED':
+      S.jealousy = data.jealousy
+      if (S.role === 'player' && S.jealousy[S.playerId] > 0) {
+        toast(`😈 你的嫉妒值: ${S.jealousy[S.playerId]}！轮二可发动挖墙脚`)
+      }
+      render()
       break
 
     case 'ROUND_CHANGED':
@@ -1027,6 +1155,47 @@ function renderFloatRoom(containerId, players, max, showCoins) {
   room.innerHTML = html
 }
 
+function renderVotePanel() {
+  // Host and player both see vote panel when a vote is active
+  const hostPanel = $('penalty-panel')
+  const playerPanel = $('player-penalty-display')
+  if (!S.vote) return
+
+  const renderCandidates = (container) => {
+    if (!container) return
+    if (S.vote.open) {
+      const joined = S.players?.filter(p => p.joined) || []
+      const votedCount = Object.keys(S.vote.results).length
+      container.innerHTML = `
+        <div class="section-title">${S.vote.type === 'penalty' ? '🎲 投票惩罚' : '💗 投票暖心'} (${votedCount}/${joined.length}已投)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          ${S.vote.candidates.map((c, i) =>
+            `<button class="btn" style="background:var(--card);border:1px solid #E7E5E4;padding:8px;font-size:12px;text-align:left;"
+              ${S.role === 'player' && !S.vote.results[S.playerId] ? `onclick="App.playerVote(${i})"` : ''}
+              ${S.vote.results[S.playerId] === i ? 'style="border:2px solid var(--warm)!important;background:var(--warm-light)!important;"' : ''}
+            >${c.icon} <b>${c.label}</b><br><span style="color:var(--text2);">${c.text}</span></button>`
+          ).join('')}
+        </div>`
+    } else if (S.vote.winner) {
+      const w = S.vote.winner
+      container.innerHTML = `
+        <div style="text-align:center;padding:12px;background:var(--card);border-radius:var(--radius);">
+          <div style="font-size:32px;">🏆</div>
+          <div style="font-weight:700;">${w.candidate.icon} ${w.candidate.label}</div>
+          <div style="font-size:14px;color:var(--text2);">${w.candidate.text}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px;">${Object.entries(w.tally).map(([k,v]) => S.vote.candidates[k].label + ':' + v + '票').join(' · ')}</div>
+        </div>`
+    }
+  }
+
+  if (S.role === 'host') {
+    if (hostPanel) { hostPanel.style.display = ''; renderCandidates(hostPanel) }
+  }
+  if (S.role === 'player') {
+    if (playerPanel) { playerPanel.style.display = ''; renderCandidates(playerPanel) }
+  }
+}
+
 function renderPenaltyPanel() {
   const panel = $('penalty-panel')
   const candidatesEl = $('penalty-candidates')
@@ -1129,18 +1298,19 @@ function render() {
     }
     // Show/hide draw button based on whether question is already drawn
     $('console-draw-btn').style.display = S.game.question ? 'none' : ''
-    // Show penalty button when no question is active
+    // Show penalty/vote panel
     const penaltyPanel = $('penalty-panel')
     if (penaltyPanel) {
-      if (!S.game.question && S.room.round >= 3) {
+      if (!S.game.question && S.room.round >= 3 && !S.vote) {
         $('penalty-panel').style.display = ''
-        if (!S.penalty) {
-          $('penalty-candidates').style.display = ''
-          $('penalty-candidates').innerHTML = '<button class="btn btn-primary" onclick="App.hostPenaltyDraw()">🎲 抽取惩罚</button>'
-          $('penalty-result').style.display = 'none'
-        }
+        $('penalty-candidates').style.display = ''
+        $('penalty-candidates').innerHTML = `
+          <button class="btn btn-primary" onclick="App.hostStartVote('penalty')" style="margin-bottom:6px;">🗳️ 投票惩罚</button>
+          <button class="btn btn-ghost" onclick="App.hostStartVote('heart')">💗 投票暖心</button>`
+        $('penalty-result').style.display = 'none'
       }
-      renderPenaltyPanel()
+      if (S.vote) { renderVotePanel() }
+      else { renderPenaltyPanel() }
     }
     renderConsolePlayers()
   }
@@ -1171,6 +1341,15 @@ function render() {
 
       // Show spark button only in round 2
       $('player-spark-btn').style.display = S.room.round === 2 ? '' : 'none'
+      // Show steal button if jealous in round 2
+      const stealBtn = $('player-steal-btn')
+      if (stealBtn) {
+        const jScore = S.jealousy?.[S.playerId] || 0
+        stealBtn.style.display = (S.room.round === 2 && jScore > 0) ? '' : 'none'
+        if (jScore > 0) {
+          stealBtn.querySelector('small').textContent = `挖墙脚(${jScore})`
+        }
+      }
 
       // Choice question panel (round 2)
       const choicePanel = $('player-choice-panel')
@@ -1203,21 +1382,77 @@ function updateSyncIndicator() {
 // ============================================================
 const App = {
 
+  // --- Profile ---
+  showNewName() {
+    $('profile-list').style.display = 'none'
+    $('new-name-form').style.display = ''
+    const picker = $('new-name-avatar-picker')
+    picker.innerHTML = AVATARS.map(a =>
+      `<div class="avatar-opt" data-avatar="${a}" onclick="App.pickNewAvatar('${a}', this)">${a}</div>`
+    ).join('')
+    setTimeout(() => $('new-name-input')?.focus(), 200)
+  },
+
+  hideNewName() {
+    $('profile-list').style.display = ''
+    $('new-name-form').style.display = 'none'
+    renderProfileList()
+  },
+
+  _newAvatar: null,
+  pickNewAvatar(avatar, el) {
+    this._newAvatar = avatar
+    document.querySelectorAll('#new-name-avatar-picker .avatar-opt').forEach(o => o.classList.remove('selected'))
+    el.classList.add('selected')
+  },
+
+  saveNewProfile() {
+    const name = $('new-name-input').value.trim()
+    if (!name) { toast('请输入名字'); return }
+    if (!this._newAvatar) { toast('请选择一个头像'); return }
+    const profile = createProfile(name, this._newAvatar)
+    const list = loadProfiles()
+    list.push(profile)
+    saveProfiles(list)
+    this._newAvatar = null
+    this.selectProfile(profile.id)
+  },
+
+  selectProfile(id) {
+    const list = loadProfiles()
+    const profile = list.find(p => p.id === id)
+    if (!profile) return
+    touchProfile(id)
+    S.profile = profile
+    $('role-avatar').textContent = profile.avatar
+    $('role-name').textContent = profile.name
+    page('page-role-pick')
+  },
+
+  switchProfile() {
+    S.profile = null
+    renderProfileList()
+    page('page-entry')
+  },
+
   goEntry() {
     clearInterval(timerInterval)
-    S.role = null; S.playerId = null; S.playerAvatar = null; S.room = null; S.players = []; S.heat = {}; S.choiceResult = null; S.penalty = null; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {}, choiceQ: null, choiceResults: {} }
+    S.profile = null; S.role = null; S.playerId = null; S.room = null; S.players = []; S.heat = {}; S.crush = {}; S.jealousy = {}; S.choiceResult = null; S.penalty = null; S.vote = null; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {}, choiceQ: null, choiceResults: {} }
     _prevJoinedIds = new Set()
+    renderProfileList()
     page('page-entry')
   },
 
   // --- Host ---
   goHost() {
     _prevJoinedIds = new Set()
-    S.role = 'host'; S.playerId = 0; S.heat = {}
+    S.role = 'host'; S.playerId = 0; S.heat = {}; S.crush = {}; S.jealousy = {}; S.vote = null
     const roomId = genRoomId()
     const maxP = 6
     S.room = { id: roomId, status: 'waiting', maxPlayers: maxP, round: 0 }
-    S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true, avatar: '🦊' }]
+    const av = S.profile?.avatar || '🦊'
+    const nm = S.profile?.name || '房主'
+    S.players = [{ id: 1, nickname: nm, joined: true, coins: 0, isHost: true, avatar: av }]
     for (let i = 2; i <= maxP; i++) {
       S.players.push({ id: i, nickname: '', joined: false, coins: 0, isHost: false, avatar: null })
     }
@@ -1269,10 +1504,30 @@ const App = {
       convergePlayers()
       return
     }
+    // Jealousy calculation: at end of round 1, check who has unrequited crushes
+    if (S.room.round === 1) {
+      S.jealousy = {}
+      const topPairs = Object.entries(S.heat).sort((a, b) => b[1] - a[1]).slice(0, 2)
+      S.players.filter(p => p.joined && !p.isHost).forEach(p => {
+        const crushes = S.crush[p.id] || []
+        // Check if any crush target is in a top pair with someone else
+        topPairs.forEach(([key, val]) => {
+          const [a, b] = key.split('-').map(Number)
+          if (crushes.includes(a) && b !== p.id && val > 30) {
+            S.jealousy[p.id] = (S.jealousy[p.id] || 0) + 1
+          }
+          if (crushes.includes(b) && a !== p.id && val > 30) {
+            S.jealousy[p.id] = (S.jealousy[p.id] || 0) + 1
+          }
+        })
+      })
+      broadcast({ type: 'JEALOUSY_UPDATED', from: 'host_0', data: { jealousy: S.jealousy } })
+    }
     S.room.round++
     S.game.question = null
     S.game.timerEnd = null
     S.game.timerRunning = false
+    S.game.choiceQ = null
     clearInterval(timerInterval)
     render()
     broadcast({ type: 'ROUND_CHANGED', from: 'host_0', data: { round: S.room.round } })
@@ -1299,48 +1554,78 @@ const App = {
     S.penalty = { ...S.penalty, selected: candidate }
     broadcast({ type: 'PENALTY_SELECTED', from: 'host_0', data: { penalty: candidate } })
     renderPenaltyPanel()
-    // Also show to players
     toast(`${candidate.icon} ${candidate.label}：${candidate.text}`)
+  },
+
+  hostStartVote(vtype) {
+    let candidates = []
+    if (vtype === 'penalty') {
+      const sys = drawPenaltyCandidates()
+      const customPool = []
+      const all = loadProfiles()
+      all.forEach(prof => {
+        if (prof.customPenalties && prof.customPenalties.length > 0) {
+          prof.customPenalties.forEach(cp => { if (Math.random() < 0.3) customPool.push(cp) })
+        }
+      })
+      candidates = [...sys.map(s => ({ label: s.label, icon: s.icon, text: s.text })), ...customPool].slice(0, 8)
+    } else {
+      candidates = S.players.filter(p => p.joined).map(p => ({
+        label: p.nickname || ('玩家' + p.id), icon: p.avatar || '🎭', text: '获得💗'
+      }))
+    }
+    S.vote = { type: vtype, candidates, open: true, results: {} }
+    broadcast({ type: 'VOTE_START', from: 'host_0', data: { vtype, candidates } })
+    renderVotePanel()
+  },
+
+  playerVote(idx) {
+    if (!S.vote?.open) { toast('投票已结束'); return }
+    S.vote.results[S.playerId] = idx
+    broadcast({ type: 'VOTE_CAST', from: 'player_' + S.playerId, data: { playerId: S.playerId, choice: idx } })
+    toast('已投票！')
+    renderVotePanel()
+  },
+
+  // --- Steal mechanic (round 2) ---
+  playerSteal(targetId) {
+    if (!S.jealousy || S.jealousy[S.playerId] <= 0) { toast('嫉妒值不足！'); return }
+    S.jealousy[S.playerId]--
+    // Double weight for choice question
+    S.choiceResult = S.choiceResult || 'a'
+    broadcast({ type: 'STEAL_ATTEMPT', from: 'player_' + S.playerId, data: { playerId: S.playerId, targetId } })
+    toast('🗡️ 挖墙脚！你的选择权重翻倍！')
+    // Also re-send choice with 2x weight
+    broadcast({ type: 'CHOICE_PICK', from: 'player_' + S.playerId, data: { playerId: S.playerId, choice: S.choiceResult, weight: 2 } })
   },
 
   // --- Player ---
   goJoin() {
     S.role = 'player'
-    S.playerAvatar = null
     page('page-player-join')
-    // Build avatar picker
-    const picker = $('avatar-picker')
-    if (picker) {
-      picker.innerHTML = AVATARS.map(a =>
-        `<div class="avatar-opt" data-avatar="${a}" onclick="App.selectAvatar('${a}', this)">${a}</div>`
-      ).join('')
-    }
-    $('join-btn').disabled = true
+    const av = S.profile?.avatar || '🎭'
+    const nm = S.profile?.name || '玩家'
+    $('join-profile-label').textContent = `${av} ${nm}`
+    $('join-btn').disabled = false
     setTimeout(() => $('join-input')?.focus(), 300)
   },
 
-  selectAvatar(avatar, el) {
-    S.playerAvatar = avatar
-    document.querySelectorAll('.avatar-opt').forEach(o => o.classList.remove('selected'))
-    el.classList.add('selected')
-    $('join-btn').disabled = false
-  },
-
   playerJoin() {
-    if (!S.playerAvatar) { toast('请先选择一个头像'); return }
     const input = $('join-input')
     const roomId = input.value.trim().toUpperCase()
     if (roomId.length < 6) { toast('请输入完整的房间号'); return }
 
     S.room = { id: roomId, status: 'waiting', maxPlayers: 6, round: 0 }
     S.playerId = Math.floor(Math.random() * 5) + 2 // 2-6
+    const av = S.profile?.avatar || '🎭'
+    const nm = S.profile?.name || '玩家'
     S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true, avatar: '🦊' }]
     page('page-player-board')
-    $('player-label').textContent = `${S.playerAvatar} ${S.playerId} 号玩家`
+    $('player-label').textContent = `${av} ${nm} (${S.playerId}号)`
     render()
 
     broadcast({ type: 'PLAYER_JOINED', from: 'player_' + S.playerId, data: {
-      roomId, playerId: S.playerId, nickname: '玩家' + S.playerId, avatar: S.playerAvatar
+      roomId, playerId: S.playerId, nickname: nm, avatar: av
     }})
     // The host will respond with ROOM_STATE, which updates our player list
 
@@ -1355,14 +1640,16 @@ const App = {
   },
 
   playerHeart() {
-    broadcast({ type: 'HEART', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: '玩家' + S.playerId } })
+    const nm = S.profile?.name || ('玩家' + S.playerId)
+    broadcast({ type: 'HEART', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: nm } })
     toast('❤️ 暖心已发送！')
     const btn = $('player-heart-btn')
     if (btn) { btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash') }
   },
 
   playerSpark() {
-    broadcast({ type: 'SPARK', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: '玩家' + S.playerId } })
+    const nm = S.profile?.name || ('玩家' + S.playerId)
+    broadcast({ type: 'SPARK', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: nm } })
     toast('🔥 火花已发送！')
     const btn = $('player-spark-btn')
     if (btn) { btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash') }
@@ -1384,31 +1671,27 @@ const App = {
 // Initialize
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
-  // Check URL params
+  renderProfileList()
   const params = new URLSearchParams(window.location.search)
   const role = params.get('role')
   const id = params.get('id')
   const room = params.get('room')
 
-  if (role === 'host') {
+  if (role === 'host' && id) {
+    S.profile = { id: 'url', name: '主持人', avatar: '🦊' }
     App.goHost()
-    if (id) $('player-label').textContent = `🎤 主持人 (${id})`
-  } else if (role === 'player' && id) {
-    S.role = 'player'
-    S.playerId = parseInt(id) || 1
-    S.room = { id: room || 'UNKNOWN', status: 'waiting', maxPlayers: 6, round: 0 }
+  } else if (role === 'player' && id && room) {
+    S.profile = { id: 'url', name: '玩家' + id, avatar: '🎭' }
+    S.role = 'player'; S.playerId = parseInt(id) || 1
+    S.room = { id: room, status: 'waiting', maxPlayers: 6, round: 0 }
     page('page-player-board')
-    $('player-label').textContent = `🎭 ${S.playerId} 号玩家`
+    $('player-label').textContent = `🎭 玩家 ${S.playerId}`
     render()
-    if (room) {
-      broadcast({ type: 'PLAYER_JOINED', from: 'player_' + S.playerId, data: {
-        roomId: room, playerId: S.playerId, nickname: '玩家' + S.playerId, avatar: '🎭'
-      }})
-    }
-  } else {
-    // Default: entry page
-    page('page-entry')
+    broadcast({ type: 'PLAYER_JOINED', from: 'player_' + S.playerId, data: {
+      roomId: room, playerId: S.playerId, nickname: '玩家' + S.playerId, avatar: '🎭'
+    }})
   }
+  // Default: profile picker already rendered on page-entry
 })
 
 // ============================================================
