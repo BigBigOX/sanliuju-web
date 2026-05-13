@@ -343,6 +343,124 @@
     width: 240px; height: 240px; bottom: -60px; left: -40px;
     background: rgba(251,191,36,.1); animation-delay: -7s;
   }
+
+  /* ===== Floating Room ===== */
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0); }
+    25%      { transform: translate(var(--drift-x), var(--drift-y)); }
+    50%      { transform: translate(calc(var(--drift-x) * -0.6), calc(var(--drift-y) * 0.8)); }
+    75%      { transform: translate(calc(var(--drift-x) * 0.4), calc(var(--drift-y) * -0.7)); }
+  }
+  .float-room {
+    position: relative;
+    width: 100%; height: 380px;
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(249,115,22,.06), transparent 70%),
+      radial-gradient(circle at 70% 30%, rgba(251,191,36,.03), transparent 40%);
+    border: 1px dashed rgba(249,115,22,.15);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .player-float {
+    position: absolute;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: left 2.5s cubic-bezier(.25,.1,.25,1),
+                top 2.5s cubic-bezier(.25,.1,.25,1),
+                transform .15s,
+                box-shadow .5s;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .player-float .pf-avatar {
+    font-size: 28px;
+    line-height: 1;
+    transition: transform .2s;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,.1));
+  }
+  .player-float .pf-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text);
+    background: rgba(255,255,255,.85);
+    border-radius: 10px;
+    padding: 1px 8px;
+    margin-top: 2px;
+    backdrop-filter: blur(4px);
+  }
+  .player-float .pf-host {
+    font-size: 9px;
+    background: var(--gold);
+    color: #fff;
+    border-radius: 8px;
+    padding: 0 6px;
+  }
+  .player-float .pf-coins {
+    font-size: 10px;
+    margin-top: 1px;
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .player-float.empty {
+    background: rgba(255,255,255,.5);
+    border: 2px dashed rgba(0,0,0,.08);
+    color: var(--text2);
+    font-size: 12px;
+    animation: none;
+    cursor: default;
+  }
+  .player-float.joined {
+    background: var(--card);
+    box-shadow: 0 2px 16px rgba(0,0,0,.06);
+    animation: drift var(--drift-dur, 4s) ease-in-out infinite;
+    animation-delay: var(--drift-delay, 0s);
+  }
+  .player-float.joined:hover {
+    transform: scale(1.12);
+    box-shadow: 0 4px 24px rgba(249,115,22,.2);
+    z-index: 10;
+  }
+  .player-float.slot-join-flash {
+    animation: scaleInBounce .5s cubic-bezier(.22,.61,.36,1);
+    box-shadow: 0 0 0 10px rgba(249,115,22,.25);
+    border: 2px solid var(--warm);
+  }
+  .player-float.converged {
+    transition: left 3s cubic-bezier(.22,.61,.36,1),
+                top 3s cubic-bezier(.22,.61,.36,1);
+    box-shadow: 0 0 20px rgba(34,197,94,.3);
+    border: 2px solid var(--success);
+  }
+
+  /* ===== Avatar Picker ===== */
+  .avatar-picker {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-items: center;
+  }
+  .avatar-opt {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    font-size: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform .15s, border-color .2s, box-shadow .2s;
+  }
+  .avatar-opt:hover  { transform: scale(1.12); }
+  .avatar-opt:active { transform: scale(.92); }
+  .avatar-opt.selected {
+    border-color: var(--warm);
+    box-shadow: 0 0 0 4px rgba(249,115,22,.18);
+    transform: scale(1.1);
+  }
 </style>
 </head>
 <body>
@@ -379,7 +497,7 @@
   </div>
 
   <div class="section-title">玩家列表 <span id="host-count">(0/6)</span></div>
-  <div class="player-grid" id="host-player-grid"></div>
+  <div class="float-room" id="host-player-room"></div>
 
   <div class="actions">
     <button class="btn btn-primary" id="host-start-btn" disabled onclick="App.hostStartGame()">
@@ -412,12 +530,14 @@
 
 <!-- ====== PLAYER: JOIN ====== -->
 <div id="page-player-join" class="page">
-  <h2 style="font-size:20px;text-align:center;margin-bottom:24px;">🎭 加入聚会</h2>
+  <h2 style="font-size:20px;text-align:center;margin-bottom:16px;">🎭 加入聚会</h2>
+  <p class="hint" style="margin-bottom:14px;">选择一个你的头像</p>
+  <div class="avatar-picker" id="avatar-picker"></div>
   <div class="input-row">
     <input class="input" id="join-input" placeholder="输入房间号" maxlength="6" autocomplete="off">
   </div>
   <div class="actions">
-    <button class="btn btn-primary" onclick="App.playerJoin()">加入房间</button>
+    <button class="btn btn-primary" id="join-btn" disabled onclick="App.playerJoin()">加入房间</button>
     <button class="btn btn-ghost" onclick="App.goEntry()">返回</button>
   </div>
 </div>
@@ -433,7 +553,7 @@
 
   <div id="player-waiting-area">
     <p class="hint">等待主持人开始游戏…</p>
-    <div class="player-grid" id="player-wait-grid"></div>
+    <div class="float-room" id="player-wait-room"></div>
   </div>
 
   <div id="player-game-area" style="display:none;">
@@ -465,13 +585,21 @@ function shuffle(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) {
 function genRoomId() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 6; i++) s += c[Math.floor(Math.random() * c.length)]; return s }
 
 // ============================================================
+// Avatars & Heat
+// ============================================================
+const AVATARS = ['🦊','🐱','🐶','🐼','🐨','🐰','🦁','🐯','🐮','🐷','🐸','🐵']
+function heatKey(a, b) { return a < b ? a + '-' + b : b + '-' + a }
+
+// ============================================================
 // State
 // ============================================================
 const S = {
   role: null,       // 'host' | 'player'
   playerId: null,   // player number (1-6)
+  playerAvatar: null, // emoji avatar
   room: null,       // { id, status, maxPlayers, round }
-  players: [],      // [{ id, nickname, joined, coins, isHost }]
+  players: [],      // [{ id, nickname, joined, coins, isHost, avatar }]
+  heat: {},         // { '1-3': 45, ... }
   game: {
     question: null, questionLevel: null,
     timerEnd: null, timerRunning: false,
@@ -522,6 +650,7 @@ function handleMessage(msg) {
       if (S.role === 'player' && data.room.id === S.room?.id) {
         S.room = data.room
         S.players = data.players
+        S.heat = data.heat || {}
         S.game = data.game
         render()
       }
@@ -533,16 +662,17 @@ function handleMessage(msg) {
         if (slot) {
           slot.joined = true
           slot.nickname = slot.nickname || data.nickname || ('玩家' + data.playerId)
+          slot.avatar = data.avatar || '🎭'
         }
         flashNewJoins(S.players)
-        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game } })
+        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game, heat: S.heat } })
         render()
       }
       break
 
     case 'ROOM_STATE_REQUEST':
       if (S.role === 'host' && data.roomId === S.room?.id) {
-        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game } })
+        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game, heat: S.heat } })
       }
       break
 
@@ -579,9 +709,25 @@ function handleMessage(msg) {
 
     case 'HEART':
     case 'SPARK':
-      // Host receives player reactions
       if (S.role === 'host') {
         toast(`${data.nickname || ('玩家' + data.playerId)} ${type === 'HEART' ? '❤️ 送出了暖心' : '🔥 送出了火花'}`)
+        // Build heat between sender and all other joined players
+        const gain = type === 'HEART' ? 10 : 20
+        S.players.filter(p => p.joined).forEach(p => {
+          if (p.id !== data.playerId) {
+            const k = heatKey(data.playerId, p.id)
+            S.heat[k] = Math.min(100, (S.heat[k] || 0) + gain)
+          }
+        })
+        broadcast({ type: 'HEAT_UPDATED', from: 'host_0', data: { heat: S.heat } })
+        renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
+      }
+      break
+
+    case 'HEAT_UPDATED':
+      if (S.role === 'player') {
+        S.heat = data.heat
+        renderFloatRoom('player-wait-room', S.players, S.room?.maxPlayers || 6, false)
       }
       break
 
@@ -590,6 +736,11 @@ function handleMessage(msg) {
       S.game.question = null
       S.game.timerRunning = false
       render()
+      break
+
+    case 'GAME_ENDED':
+      S.heat = data.heat || {}
+      convergePlayers()
       break
   }
 }
@@ -616,16 +767,47 @@ function toast(msg) {
   t._t = setTimeout(() => t.classList.remove('show'), 2000)
 }
 
+function convergePlayers() {
+  const rooms = document.querySelectorAll('.float-room')
+  rooms.forEach(room => {
+    const floats = room.querySelectorAll('.player-float.joined')
+    if (floats.length < 2) return
+    const cw = room.clientWidth, ch = 380
+    const cx = cw / 2, cy = ch / 2
+    // Find pairs with high heat and cluster them
+    const pairs = []
+    for (let i = 0; i < floats.length; i++) {
+      for (let j = i + 1; j < floats.length; j++) {
+        const a = parseInt(floats[i].dataset.pid)
+        const b = parseInt(floats[j].dataset.pid)
+        pairs.push({ a, b, elA: floats[i], elB: floats[j], heat: S.heat[heatKey(a, b)] || 0 })
+      }
+    }
+    pairs.sort((x, y) => y.heat - x.heat)
+    // Cluster high-heat pairs toward center, low-heat toward edges
+    pairs.forEach((pair, idx) => {
+      const pull = pair.heat / 100
+      const tx = cx + (idx - pairs.length / 2) * 50 - 30
+      const ty = cy - 20
+      pair.elA.classList.add('converged')
+      pair.elB.classList.add('converged')
+      pair.elA.style.left = (tx - 20 - pull * 20) + 'px'
+      pair.elA.style.top  = ty + 'px'
+      pair.elB.style.left = (tx + 40 + pull * 20) + 'px'
+      pair.elB.style.top  = ty + 'px'
+    })
+  })
+}
+
 // Track previous joined count to detect new joins
 let _prevJoinedIds = new Set()
 function flashNewJoins(players) {
   const currentIds = new Set(players.filter(p => p.joined).map(p => p.id))
   currentIds.forEach(id => {
     if (!_prevJoinedIds.has(id)) {
-      // New player joined — flash their slot
-      const grids = document.querySelectorAll('.player-grid')
-      grids.forEach(grid => {
-        const slot = grid.children[id - 1]
+      const rooms = document.querySelectorAll('.float-room')
+      rooms.forEach(room => {
+        const slot = room.querySelector('.player-float.joined[data-pid="' + id + '"]')
         if (slot) {
           slot.classList.remove('slot-join-flash')
           void slot.offsetWidth
@@ -637,28 +819,80 @@ function flashNewJoins(players) {
   _prevJoinedIds = new Set(currentIds)
 }
 
-function renderPlayerGrid(containerId, players, max, showCoins) {
-  const grid = $(containerId)
-  if (!grid) return
+function calcFloatPositions(players, heat, cw, ch) {
+  // cw/ch = container dimensions; player elements are ~70px
+  const margin = 54
+  const joined = players.filter(p => p.joined)
+  const n = joined.length || 1
+  const cx = cw / 2, cy = ch / 2
+  const rx = cw / 2 - margin, ry = ch / 2 - margin
+  // base positions on ellipse
+  const bases = joined.map((p, i) => {
+    const angle = (i / n) * Math.PI * 2 - Math.PI / 2
+    return {
+      id: p.id,
+      bx: cx + rx * Math.cos(angle) - 32,
+      by: cy + ry * Math.sin(angle) - 32
+    }
+  })
+  // apply heat attraction
+  const positions = bases.map(b => {
+    let tx = b.bx, ty = b.by
+    const total = bases.length
+    bases.forEach(b2 => {
+      if (b.id === b2.id) return
+      const h = heat[heatKey(b.id, b2.id)] || 0
+      const pull = h / 100 * 60
+      tx += (b2.bx - b.bx) * (pull / (total * 5))
+      ty += (b2.by - b.by) * (pull / (total * 5))
+    })
+    // clamp to container
+    return {
+      id: b.id,
+      x: Math.max(4, Math.min(cw - 64, tx)),
+      y: Math.max(4, Math.min(ch - 64, ty))
+    }
+  })
+  return positions
+}
+
+function renderFloatRoom(containerId, players, max, showCoins) {
+  const room = $(containerId)
+  if (!room) return
+  const cw = room.clientWidth || 340, ch = 380
+  const positions = calcFloatPositions(players, S.heat, cw, ch)
   let html = ''
   for (let i = 0; i < max; i++) {
     const p = players[i]
-    const delay = (i * 0.06).toFixed(2) + 's'
+    const pos = positions.find(pp => pp.id === (p ? p.id : i + 1))
+    const px = pos ? pos.x : 0
+    const py = pos ? pos.y : 0
     if (p && p.joined) {
-      html += `<div class="player-slot joined" style="--slot-delay:${delay}">
-        <div class="p-num">${p.id}</div>
-        <div class="p-name">${p.nickname || '玩家'+p.id}</div>
-        ${p.isHost ? '<div class="host-badge">房主</div>' : ''}
-        ${showCoins ? `<div style="font-size:13px;color:var(--gold);margin-top:2px;">🪙 ${p.coins || 0}</div>` : ''}
+      const size = max <= 3 ? 80 : max <= 5 ? 72 : 64
+      const driftX = ((p.id % 3) * 6 + 4) + 'px'
+      const driftY = ((p.id % 2) * 8 + 3) + 'px'
+      const driftDur = (3.5 + (p.id * 0.7) % 3) + 's'
+      const driftDelay = (p.id * 0.3).toFixed(1) + 's'
+      html += `<div class="player-float joined" data-pid="${p.id}" style="
+        left:${px}px; top:${py}px;
+        width:${size}px; height:${size}px;
+        --drift-x:${driftX}; --drift-y:${driftY};
+        --drift-dur:${driftDur}; --drift-delay:${driftDelay};
+      ">
+        <div class="pf-avatar">${p.avatar || '🎭'}</div>
+        ${p.isHost ? '<div class="pf-host">房主</div>' : ''}
+        <div class="pf-tag">${p.nickname || '玩家'+p.id}</div>
+        ${showCoins ? `<div class="pf-coins">🪙 ${p.coins || 0}</div>` : ''}
       </div>`
     } else {
-      html += `<div class="player-slot" style="--slot-delay:${delay}">
-        <div class="p-num">${i + 1}</div>
-        <div style="font-size:11px;">等待加入</div>
-      </div>`
+      const size = 64
+      html += `<div class="player-float empty" style="
+        left:${px}px; top:${py}px;
+        width:${size}px; height:${size}px;
+      ">${i + 1}</div>`
     }
   }
-  grid.innerHTML = html
+  room.innerHTML = html
 }
 
 function renderConsolePlayers() {
@@ -710,7 +944,7 @@ function render() {
   if (S.role === 'host' && S.room?.status === 'waiting') {
     $('host-room-id').textContent = S.room.id
     $('host-count').textContent = `(${S.players.filter(p=>p.joined).length}/${S.room.maxPlayers})`
-    renderPlayerGrid('host-player-grid', S.players, S.room.maxPlayers, false)
+    renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
     const joined = S.players.filter(p => p.joined).length
     const btn = $('host-start-btn')
     btn.disabled = joined < 3
@@ -741,7 +975,7 @@ function render() {
       $('player-game-area').style.display = 'none'
       $('player-status-badge').textContent = '等待中'
       $('player-status-badge').className = 'status-badge status-waiting'
-      renderPlayerGrid('player-wait-grid', S.players, S.room?.maxPlayers || 6, false)
+      renderFloatRoom('player-wait-room', S.players, S.room?.maxPlayers || 6, false)
     } else if (S.room?.status === 'playing') {
       $('player-waiting-area').style.display = 'none'
       $('player-game-area').style.display = ''
@@ -775,25 +1009,25 @@ const App = {
 
   goEntry() {
     clearInterval(timerInterval)
-    S.role = null; S.playerId = null; S.room = null; S.players = []; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {} }
+    S.role = null; S.playerId = null; S.playerAvatar = null; S.room = null; S.players = []; S.heat = {}; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {} }
+    _prevJoinedIds = new Set()
     page('page-entry')
   },
 
   // --- Host ---
   goHost() {
     _prevJoinedIds = new Set()
-    S.role = 'host'; S.playerId = 0
+    S.role = 'host'; S.playerId = 0; S.heat = {}
     const roomId = genRoomId()
     const maxP = 6
     S.room = { id: roomId, status: 'waiting', maxPlayers: maxP, round: 0 }
-    // Host is player 1
-    S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true }]
+    S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true, avatar: '🦊' }]
     for (let i = 2; i <= maxP; i++) {
-      S.players.push({ id: i, nickname: '', joined: false, coins: 0, isHost: false })
+      S.players.push({ id: i, nickname: '', joined: false, coins: 0, isHost: false, avatar: null })
     }
     page('page-host-wait')
     render()
-    broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game } })
+    broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game, heat: S.heat } })
   },
 
   hostStartGame() {
@@ -823,7 +1057,9 @@ const App = {
 
   hostNextRound() {
     if (S.room.round >= 3) {
-      toast('已经是最后一轮了！')
+      toast('🎉 三轮结束！看看谁和谁走到了一起…')
+      broadcast({ type: 'GAME_ENDED', from: 'host_0', data: { heat: S.heat } })
+      convergePlayers()
       return
     }
     S.room.round++
@@ -846,28 +1082,41 @@ const App = {
   // --- Player ---
   goJoin() {
     S.role = 'player'
+    S.playerAvatar = null
     page('page-player-join')
+    // Build avatar picker
+    const picker = $('avatar-picker')
+    if (picker) {
+      picker.innerHTML = AVATARS.map(a =>
+        `<div class="avatar-opt" data-avatar="${a}" onclick="App.selectAvatar('${a}', this)">${a}</div>`
+      ).join('')
+    }
+    $('join-btn').disabled = true
     setTimeout(() => $('join-input')?.focus(), 300)
   },
 
+  selectAvatar(avatar, el) {
+    S.playerAvatar = avatar
+    document.querySelectorAll('.avatar-opt').forEach(o => o.classList.remove('selected'))
+    el.classList.add('selected')
+    $('join-btn').disabled = false
+  },
+
   playerJoin() {
+    if (!S.playerAvatar) { toast('请先选择一个头像'); return }
     const input = $('join-input')
     const roomId = input.value.trim().toUpperCase()
     if (roomId.length < 6) { toast('请输入完整的房间号'); return }
 
-    // In a real app, this would validate against the host
-    // For BroadcastChannel demo: send join request
     S.room = { id: roomId, status: 'waiting', maxPlayers: 6, round: 0 }
     S.playerId = Math.floor(Math.random() * 5) + 2 // 2-6
-    S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true }]
-    // We don't know the actual players; request from host
+    S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true, avatar: '🦊' }]
     page('page-player-board')
-    $('player-label').textContent = `🎭 ${S.playerId} 号玩家`
+    $('player-label').textContent = `${S.playerAvatar} ${S.playerId} 号玩家`
     render()
 
-    // Ask host for state
     broadcast({ type: 'PLAYER_JOINED', from: 'player_' + S.playerId, data: {
-      roomId, playerId: S.playerId, nickname: '玩家' + S.playerId
+      roomId, playerId: S.playerId, nickname: '玩家' + S.playerId, avatar: S.playerAvatar
     }})
     // The host will respond with ROOM_STATE, which updates our player list
 
@@ -918,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     render()
     if (room) {
       broadcast({ type: 'PLAYER_JOINED', from: 'player_' + S.playerId, data: {
-        roomId: room, playerId: S.playerId, nickname: '玩家' + S.playerId
+        roomId: room, playerId: S.playerId, nickname: '玩家' + S.playerId, avatar: '🎭'
       }})
     }
   } else {
