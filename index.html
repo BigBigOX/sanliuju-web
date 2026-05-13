@@ -526,6 +526,12 @@
 
   <div class="section-title">玩家暖心值</div>
   <div id="console-players"></div>
+
+  <div id="penalty-panel" style="display:none;margin-top:16px;">
+    <div class="section-title">🎲 奖惩环节</div>
+    <div id="penalty-candidates" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+    <div id="penalty-result" style="display:none;text-align:center;padding:12px;background:var(--card);border-radius:var(--radius);margin-top:8px;"></div>
+  </div>
 </div>
 
 <!-- ====== PLAYER: JOIN ====== -->
@@ -559,6 +565,14 @@
   <div id="player-game-area" style="display:none;">
     <div class="timer-big" id="player-timer">30</div>
     <div class="question-card empty" id="player-question">等待主持人出题…</div>
+    <div id="player-choice-panel" style="display:none;margin:8px 0;">
+      <div class="section-title" id="player-choice-q"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn" id="player-choice-a" style="flex:1;background:var(--card);border:2px solid #E7E5E4;" onclick="App.playerPickChoice('a')"></button>
+        <button class="btn" id="player-choice-b" style="flex:1;background:var(--card);border:2px solid #E7E5E4;" onclick="App.playerPickChoice('b')"></button>
+      </div>
+    </div>
+    <div id="player-penalty-display" style="display:none;text-align:center;padding:12px;background:var(--card);border-radius:var(--radius);margin:8px 0;"></div>
     <div class="board-actions">
       <button class="heart-btn" id="player-heart-btn" onclick="App.playerHeart()">❤️<br><small>暖心</small></button>
       <button class="spark-btn" id="player-spark-btn" onclick="App.playerSpark()" style="display:none;">🔥<br><small>火花</small></button>
@@ -591,6 +605,90 @@ const AVATARS = ['🦊','🐱','🐶','🐼','🐨','🐰','🦁','🐯','🐮',
 function heatKey(a, b) { return a < b ? a + '-' + b : b + '-' + a }
 
 // ============================================================
+// Penalty System
+// ============================================================
+const PENALTIES = {
+  perform: {
+    label: '表演', icon: '🎭',
+    items: [
+      '用三种不同的声调唱《小星星》',
+      '模仿在场任意一个人，让大家猜是谁',
+      '用 rap 节奏念出你的手机号后四位',
+      '对着窗户大喊三声「今天太开心了」',
+      '用慢动作表演「被蜜蜂追着跑」',
+      '单手倒立… 做不到就倒立喝水吧',
+      '用最浮夸的方式自我介绍 30 秒',
+      '表演一个广告，推销现场的任意一件物品',
+      '用方言朗诵一段天气预报',
+      '跟着音乐即兴跳 20 秒舞蹈'
+    ]
+  },
+  truth: {
+    label: '真心话', icon: '💬',
+    items: [
+      '最近一次对谁撒了谎？说了什么？',
+      '手机里最不想让人看到的 App 是什么？',
+      '上一次哭是因为什么？',
+      '你在场最不想得罪的人是谁？为什么？',
+      '说一个你从来没有告诉过任何人的秘密',
+      '你最近一次心动是什么时候？对谁？',
+      '你做过最尴尬的一件事是什么？',
+      '如果必须在场选一个人借钱，你会选谁？',
+      '你觉得自己最虚伪的地方是什么？',
+      '上一次生气是因为什么？现在还气吗？'
+    ]
+  },
+  dare: {
+    label: '大冒险', icon: '⚡',
+    items: [
+      '做 10 个俯卧撑（或 15 个深蹲）',
+      '闭眼原地转 8 圈，然后走直线',
+      '用嘴叼着杯子喝一口水，不许用手',
+      '单脚站立 30 秒，失败重来',
+      '和左手边的玩家对视 15 秒，不许笑',
+      '不弯膝盖弯腰摸脚尖，保持 10 秒',
+      '一口气念完「四是四十是十十四是十四」三遍',
+      '在 30 秒内让至少两个人笑出声',
+      '头顶一本书绕房间走一圈，掉了重来',
+      '用反手写下自己的名字，大家评分'
+    ]
+  },
+  social: {
+    label: '社交', icon: '🎯',
+    items: [
+      '给在场每个人一句真诚的夸奖',
+      '和右手边的人交换手机看相册第一张照片',
+      '给不在场的任意一个朋友发消息「我想你了」',
+      '选出在场「最想和他一起旅行」的人并说明原因',
+      '和最不熟的人握手 10 秒并说「认识你真好」',
+      '发一条朋友圈：「刚刚在玩三六局，太刺激了」不删',
+      '选一个人，用 30 秒说出 TA 的三个优点',
+      '和离你最远的人碰杯（没杯子就用手指）',
+      '给群聊发一个 5 元红包',
+      '对在场最年长/资历最深的人鞠一躬'
+    ]
+  }
+}
+
+function drawPenaltyCandidates() {
+  return Object.entries(PENALTIES).map(([key, val]) => {
+    const item = val.items[Math.floor(Math.random() * val.items.length)]
+    return { key, label: val.label, icon: val.icon, text: item }
+  })
+}
+
+// ============================================================
+// Choice Questions (Round 2)
+// ============================================================
+const CHOICE_QS = [
+  { q: '咖啡还是茶？', a: '☕ 咖啡', b: '🍵 茶' },
+  { q: '山还是海？', a: '⛰️ 山', b: '🌊 海' },
+  { q: '猫还是狗？', a: '🐱 猫', b: '🐶 狗' },
+  { q: '电影还是书？', a: '🎬 电影', b: '📖 书' },
+  { q: '早起还是熬夜？', a: '🌅 早起', b: '🌙 熬夜' }
+]
+
+// ============================================================
 // State
 // ============================================================
 const S = {
@@ -600,10 +698,14 @@ const S = {
   room: null,       // { id, status, maxPlayers, round }
   players: [],      // [{ id, nickname, joined, coins, isHost, avatar }]
   heat: {},         // { '1-3': 45, ... }
+  choiceResult: null, // player's choice in round 2 ('a' | 'b')
+  penalty: null,    // { key, label, icon, text } current penalty
   game: {
     question: null, questionLevel: null,
     timerEnd: null, timerRunning: false,
-    pairs: null, sparks: {}
+    pairs: null, sparks: {},
+    choiceQ: null,  // current choice question for round 2
+    choiceResults: {} // { playerId: 'a'|'b', ... }
   }
 }
 
@@ -689,6 +791,9 @@ function handleMessage(msg) {
       S.game.questionLevel = data.level
       S.game.timerEnd = data.timerEnd
       S.game.timerRunning = true
+      S.game.choiceQ = data.choiceQ || null
+      S.game.choiceResults = {}
+      S.choiceResult = null
       render()
       startTimerUI()
       break
@@ -736,6 +841,33 @@ function handleMessage(msg) {
       S.game.question = null
       S.game.timerRunning = false
       render()
+      break
+
+    case 'CHOICE_PICK':
+      if (S.role === 'host') {
+        S.game.choiceResults[data.playerId] = data.choice
+        // Match choices boost heat between same-choice players
+        const joined = S.players.filter(p => p.joined)
+        joined.forEach(p => {
+          if (p.id !== data.playerId && S.game.choiceResults[p.id] === data.choice) {
+            const k = heatKey(data.playerId, p.id)
+            S.heat[k] = Math.min(100, (S.heat[k] || 0) + 15)
+          }
+        })
+        broadcast({ type: 'HEAT_UPDATED', from: 'host_0', data: { heat: S.heat } })
+        renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
+      }
+      break
+
+    case 'PENALTY_CANDIDATES':
+      S.penalty = { candidates: data.candidates }
+      if (S.role === 'player') renderPenaltyDisplay()
+      break
+
+    case 'PENALTY_SELECTED':
+      S.penalty = { selected: data.penalty }
+      if (S.role === 'player') renderPenaltyDisplay()
+      if (S.role === 'host') { renderPenaltyPanel(); render() }
       break
 
     case 'GAME_ENDED':
@@ -895,6 +1027,39 @@ function renderFloatRoom(containerId, players, max, showCoins) {
   room.innerHTML = html
 }
 
+function renderPenaltyPanel() {
+  const panel = $('penalty-panel')
+  const candidatesEl = $('penalty-candidates')
+  const resultEl = $('penalty-result')
+  if (!panel) return
+  if (S.room?.status !== 'playing') { panel.style.display = 'none'; return }
+  panel.style.display = ''
+  if (S.penalty?.selected) {
+    candidatesEl.style.display = 'none'
+    resultEl.style.display = ''
+    const p = S.penalty.selected
+    resultEl.innerHTML = `<div style="font-size:32px;">${p.icon}</div><div style="font-weight:700;">${p.label}</div><div style="font-size:14px;color:var(--text2);">${p.text}</div>`
+  } else if (S.penalty?.candidates) {
+    candidatesEl.style.display = 'grid'
+    resultEl.style.display = 'none'
+    candidatesEl.innerHTML = S.penalty.candidates.map(c =>
+      `<button class="btn" style="background:var(--card);border:1px solid #E7E5E4;padding:10px;text-align:left;font-size:13px;" onclick="App.hostPenaltySelect('${c.key}')">${c.icon} <b>${c.label}</b><br><span style="color:var(--text2);">${c.text}</span></button>`
+    ).join('')
+  }
+}
+
+function renderPenaltyDisplay() {
+  const el = $('player-penalty-display')
+  if (!el) return
+  if (S.penalty?.selected) {
+    el.style.display = ''
+    const p = S.penalty.selected
+    el.innerHTML = `<div style="font-size:32px;">${p.icon}</div><div style="font-weight:700;font-size:16px;">${p.label}</div><div style="font-size:14px;color:var(--text2);margin-top:4px;">${p.text}</div>`
+  } else {
+    el.style.display = 'none'
+  }
+}
+
 function renderConsolePlayers() {
   const el = $('console-players')
   if (!el) return
@@ -964,6 +1129,19 @@ function render() {
     }
     // Show/hide draw button based on whether question is already drawn
     $('console-draw-btn').style.display = S.game.question ? 'none' : ''
+    // Show penalty button when no question is active
+    const penaltyPanel = $('penalty-panel')
+    if (penaltyPanel) {
+      if (!S.game.question && S.room.round >= 3) {
+        $('penalty-panel').style.display = ''
+        if (!S.penalty) {
+          $('penalty-candidates').style.display = ''
+          $('penalty-candidates').innerHTML = '<button class="btn btn-primary" onclick="App.hostPenaltyDraw()">🎲 抽取惩罚</button>'
+          $('penalty-result').style.display = 'none'
+        }
+      }
+      renderPenaltyPanel()
+    }
     renderConsolePlayers()
   }
 
@@ -993,6 +1171,24 @@ function render() {
 
       // Show spark button only in round 2
       $('player-spark-btn').style.display = S.room.round === 2 ? '' : 'none'
+
+      // Choice question panel (round 2)
+      const choicePanel = $('player-choice-panel')
+      if (S.game.choiceQ && !S.choiceResult) {
+        choicePanel.style.display = ''
+        $('player-choice-q').textContent = S.game.choiceQ.q
+        $('player-choice-a').textContent = S.game.choiceQ.a
+        $('player-choice-b').textContent = S.game.choiceQ.b
+        $('player-choice-a').style.borderColor = '#E7E5E4'
+        $('player-choice-a').style.background = 'var(--card)'
+        $('player-choice-b').style.borderColor = '#E7E5E4'
+        $('player-choice-b').style.background = 'var(--card)'
+      } else {
+        choicePanel.style.display = 'none'
+      }
+
+      // Penalty display
+      renderPenaltyDisplay()
     }
   }
 }
@@ -1009,7 +1205,7 @@ const App = {
 
   goEntry() {
     clearInterval(timerInterval)
-    S.role = null; S.playerId = null; S.playerAvatar = null; S.room = null; S.players = []; S.heat = {}; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {} }
+    S.role = null; S.playerId = null; S.playerAvatar = null; S.room = null; S.players = []; S.heat = {}; S.choiceResult = null; S.penalty = null; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {}, choiceQ: null, choiceResults: {} }
     _prevJoinedIds = new Set()
     page('page-entry')
   },
@@ -1050,9 +1246,20 @@ const App = {
     S.game.questionLevel = poolKey.replace('L', '')
     S.game.timerEnd = Date.now() + 30000
     S.game.timerRunning = true
+    // Round 2: include a choice question
+    if (round === 2) {
+      S.game.choiceQ = CHOICE_QS[Math.floor(Math.random() * CHOICE_QS.length)]
+      S.game.choiceResults = {}
+    } else {
+      S.game.choiceQ = null
+    }
     render()
     startTimerUI()
-    broadcast({ type: 'QUESTION', from: 'host_0', data: { question, level: poolKey.replace('L',''), timerEnd: S.game.timerEnd } })
+    broadcast({ type: 'QUESTION', from: 'host_0', data: {
+      question, level: poolKey.replace('L',''),
+      timerEnd: S.game.timerEnd,
+      choiceQ: S.game.choiceQ || null
+    }})
   },
 
   hostNextRound() {
@@ -1077,6 +1284,23 @@ const App = {
     p.coins = Math.max(0, (p.coins || 0) + delta)
     renderConsolePlayers()
     broadcast({ type: 'COINS_UPDATED', from: 'host_0', data: { players: S.players } })
+  },
+
+  hostPenaltyDraw() {
+    const candidates = drawPenaltyCandidates()
+    S.penalty = { candidates }
+    broadcast({ type: 'PENALTY_CANDIDATES', from: 'host_0', data: { candidates } })
+    renderPenaltyPanel()
+  },
+
+  hostPenaltySelect(key) {
+    const candidate = S.penalty?.candidates?.find(c => c.key === key)
+    if (!candidate) return
+    S.penalty = { ...S.penalty, selected: candidate }
+    broadcast({ type: 'PENALTY_SELECTED', from: 'host_0', data: { penalty: candidate } })
+    renderPenaltyPanel()
+    // Also show to players
+    toast(`${candidate.icon} ${candidate.label}：${candidate.text}`)
   },
 
   // --- Player ---
@@ -1142,6 +1366,17 @@ const App = {
     toast('🔥 火花已发送！')
     const btn = $('player-spark-btn')
     if (btn) { btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash') }
+  },
+
+  playerPickChoice(choice) {
+    S.choiceResult = choice
+    broadcast({ type: 'CHOICE_PICK', from: 'player_' + S.playerId, data: { playerId: S.playerId, choice } })
+    // Highlight selected button
+    $('player-choice-a').style.borderColor = choice === 'a' ? 'var(--warm)' : '#E7E5E4'
+    $('player-choice-a').style.background = choice === 'a' ? 'var(--warm-light)' : 'var(--card)'
+    $('player-choice-b').style.borderColor = choice === 'b' ? 'var(--warm)' : '#E7E5E4'
+    $('player-choice-b').style.background = choice === 'b' ? 'var(--warm-light)' : 'var(--card)'
+    toast(choice === 'a' ? '选了 A！' : '选了 B！')
   }
 }
 
