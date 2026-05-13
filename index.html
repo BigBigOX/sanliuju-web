@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>三六局 — 聚会破冰游戏</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --warm: #F97316; --warm-light: #FFF7ED; --warm-dark: #EA580C;
@@ -621,10 +622,9 @@
 
 <script>
 // ============================================================
-// 三六局 Web 原型 — BroadcastChannel 多标签页同步
+// 三六局 Web — Supabase Realtime 多端同步
 // ============================================================
 
-const CH = 'sanliuju'
 const POOL = {
   L1: ['你最近一次发自内心大笑是因为什么？','你最喜欢的旅行目的地是哪里？为什么？','如果你可以拥有一种超能力，你会选什么？','你最近在单曲循环的一首歌是什么？','你做过最勇敢的一件小事是什么？','你最喜欢的电影或书是哪一部？','你最近学到的一个有趣冷知识是什么？','你童年最快乐的记忆是什么？','如果能和任何一个名人共进晚餐，你会选谁？','你最喜欢什么季节？为什么？','你手机里最近一张照片拍的是什么？','你做过最疯狂的一件事是什么？','你最近一次下厨做了什么东西？','你小时候最喜欢的动画片是什么？','你日常生活中最让你开心的小事是什么？','你最近一次被种草的东西是什么？','你收到过最好的礼物是什么？','你最喜欢自己性格里的哪一个特点？','如果用三个词形容自己，你会选哪三个？','你今天过得怎么样？'],
   L2: ['你觉得朋友之间最重要的是什么？','你小时候的梦想是什么？现在还在追吗？','你心中最理想的一天是什么样的？','你最近一次被人感动的经历是什么？','你做过最让自己骄傲的事情是什么？','你认为人与人之间产生信任的关键是什么？','你欣赏什么样的人？','朋友难过时，你通常会怎么安慰对方？','你觉得自己在团队中通常扮演什么角色？','你从家人身上学到的最重要的东西是什么？','你理想中的友情应该是什么样的？','你生命中收到过最好的建议是什么？','你做过最暖心的一个举动是什么？','你最近一次主动联系老朋友是什么时候？','你心中"高质量陪伴"是什么样的？'],
@@ -633,7 +633,7 @@ const POOL = {
 }
 const ROUND_NAMES = { 1: '破冰轮', 2: '结对轮', 3: '默契轮' }
 function shuffle(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]] } return b }
-function genRoomId() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 6; i++) s += c[Math.floor(Math.random() * c.length)]; return s }
+function genRoomId() { let s = ''; for (let i = 0; i < 6; i++) s += Math.floor(Math.random() * 10); return s }
 
 // ============================================================
 // Avatars & Heat
@@ -890,31 +890,33 @@ const S = {
 }
 
 // ============================================================
-// BroadcastChannel
+// Supabase Realtime (multi-device sync)
 // ============================================================
-let channel = null
-function setupChannel() {
-  try {
-    channel = new BroadcastChannel(CH)
-    channel.onmessage = (e) => handleMessage(e.data)
-  } catch (_) {
-    // Fallback: use localStorage events for Safari/older browsers
-    window.addEventListener('storage', (e) => {
-      if (e.key === CH) {
-        try { handleMessage(JSON.parse(e.newValue)) } catch (_) {}
-      }
-    })
+const SB_URL = 'https://qrqhooyjbynicwycttfi.supabase.co'
+const SB_KEY = 'sb_publishable_LhnO7BuftYRFwignp2fGtA_m_c0Gkxl'
+let sb = null
+let sbChannel = null
+
+function getSB() {
+  if (!sb && window.supabase) {
+    sb = window.supabase.createClient(SB_URL, SB_KEY)
   }
+  return sb
 }
-setupChannel()
+
+function joinRoomChannel(roomId) {
+  const client = getSB()
+  if (!client) return
+  if (sbChannel) { sbChannel.unsubscribe() }
+  sbChannel = client.channel('room:' + roomId)
+  sbChannel.on('broadcast', { event: 'msg' }, (payload) => {
+    handleMessage(payload.payload)
+  }).subscribe()
+}
 
 function broadcast(msg) {
-  const payload = { ...msg, ts: Date.now() }
-  if (channel) {
-    channel.postMessage(payload)
-  } else {
-    // localStorage fallback
-    localStorage.setItem(CH, JSON.stringify(payload))
+  if (sbChannel) {
+    sbChannel.send({ type: 'broadcast', event: 'msg', payload: { ...msg, ts: Date.now() } })
   }
 }
 
@@ -1591,6 +1593,7 @@ const App = {
 
   goEntry() {
     clearInterval(timerInterval)
+    if (sbChannel) { sbChannel.unsubscribe(); sbChannel = null }
     S.profile = null; S.role = null; S.playerId = null; S.room = null; S.players = []; S.heat = {}; S.crush = {}; S.jealousy = {}; S.choiceResult = null; S.penalty = null; S.vote = null; S.roundAnswers = null; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {}, choiceQ: null, choiceResults: {} }
     _prevJoinedIds = new Set()
     renderProfileList()
@@ -1611,6 +1614,7 @@ const App = {
       S.players.push({ id: i, nickname: '', joined: false, coins: 0, isHost: false, avatar: null })
     }
     page('page-host-wait')
+    joinRoomChannel(roomId)
     render()
     broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game, heat: S.heat } })
   },
@@ -1830,6 +1834,7 @@ const App = {
     const nm = S.profile?.name || '玩家'
     S.players = [{ id: 1, nickname: '房主', joined: true, coins: 0, isHost: true, avatar: '🦊' }]
     page('page-player-board')
+    joinRoomChannel(roomId)
     $('player-label').textContent = `${av} ${nm} (${S.playerId}号)`
     render()
 
