@@ -545,11 +545,14 @@
 
   <div class="actions" style="margin-bottom:12px;">
     <button class="btn btn-primary" id="console-draw-btn" onclick="App.hostDrawQuestion()">🎲 抽题</button>
+    <button class="btn btn-ghost" id="console-ai-draw-btn" onclick="App.hostDrawQuestion(true)" style="font-size:13px;">🤖 AI出题</button>
     <button class="btn btn-ghost" onclick="App.hostNextRound()">→ 下一轮</button>
   </div>
 
   <div class="section-title">玩家暖心值</div>
   <div id="console-players"></div>
+
+  <div id="ai-comment" style="display:none;margin-top:12px;padding:10px 14px;background:linear-gradient(135deg,#FEF3C7,#FFF7ED);border-radius:12px;font-size:13px;color:#92400E;min-height:20px;"></div>
 
   <div id="penalty-panel" style="display:none;margin-top:16px;">
     <div class="section-title">🎲 奖惩环节</div>
@@ -596,6 +599,7 @@
       </div>
     </div>
     <div id="player-penalty-display" style="display:none;text-align:center;padding:12px;background:var(--card);border-radius:var(--radius);margin:8px 0;"></div>
+    <div id="player-ai-comment" style="display:none;margin:8px 0;padding:10px 14px;background:linear-gradient(135deg,#FEF3C7,#FFF7ED);border-radius:12px;font-size:13px;color:#92400E;min-height:20px;"></div>
     <div class="board-actions">
       <button class="heart-btn" id="player-heart-btn" onclick="App.playerHeart()">❤️<br><small>暖心</small></button>
       <button class="spark-btn" id="player-spark-btn" onclick="App.playerSpark()" style="display:none;">🔥<br><small>火花</small></button>
@@ -713,6 +717,35 @@ const CHOICE_QS = [
 ]
 
 // ============================================================
+// AI Helper
+// ============================================================
+async function callAI(prompt) {
+  try {
+    const resp = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    })
+    if (!resp.ok) return null
+    const data = await resp.json()
+    return data.text || null
+  } catch (_) {
+    return null
+  }
+}
+
+function aiSay(text, containerId) {
+  if (!text) return
+  const el = document.getElementById(containerId || 'ai-comment')
+  if (!el) return
+  el.style.display = ''
+  el.textContent = '🤖 ' + text
+  el.style.animation = 'none'
+  void el.offsetWidth
+  el.style.animation = 'slideInRight .4s cubic-bezier(.22,.61,.36,1)'
+}
+
+// ============================================================
 // Profile System (localStorage)
 // ============================================================
 const PROFILES_KEY = 'slj_profiles'
@@ -822,20 +855,6 @@ function handleMessage(msg) {
       }
       break
 
-    case 'PLAYER_JOINED':
-      if (S.role === 'host' && data.roomId === S.room?.id) {
-        const slot = S.players[data.playerId - 1]
-        if (slot) {
-          slot.joined = true
-          slot.nickname = slot.nickname || data.nickname || ('玩家' + data.playerId)
-          slot.avatar = data.avatar || '🎭'
-        }
-        flashNewJoins(S.players)
-        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game, heat: S.heat } })
-        render()
-      }
-      break
-
     case 'ROOM_STATE_REQUEST':
       if (S.role === 'host' && data.roomId === S.room?.id) {
         broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game, heat: S.heat } })
@@ -879,8 +898,8 @@ function handleMessage(msg) {
     case 'HEART':
     case 'SPARK':
       if (S.role === 'host') {
-        toast(`${data.nickname || ('玩家' + data.playerId)} ${type === 'HEART' ? '❤️ 送出了暖心' : '🔥 送出了火花'}`)
-        // Track crush: sender likes all other joined players (general warmth)
+        const nm = data.nickname || ('玩家' + data.playerId)
+        toast(`${nm} ${type === 'HEART' ? '❤️ 送出了暖心' : '🔥 送出了火花'}`)
         if (!S.crush[data.playerId]) S.crush[data.playerId] = []
         S.players.filter(p => p.joined && p.id !== data.playerId).forEach(p => {
           if (!S.crush[data.playerId].includes(p.id)) S.crush[data.playerId].push(p.id)
@@ -894,6 +913,31 @@ function handleMessage(msg) {
         })
         broadcast({ type: 'HEAT_UPDATED', from: 'host_0', data: { heat: S.heat } })
         renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
+          // AI comment
+        const names = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
+        callAI(`${nm}在游戏轮${S.room.round}中送出了${type === 'HEART' ? '暖心' : '火花'}。在场玩家：${names}。请用一句八卦风格的话评论这件事。`).then(t => {
+          if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
+        })
+      }
+      break
+
+    case 'PLAYER_JOINED':
+      if (S.role === 'host' && data.roomId === S.room?.id) {
+        const slot = S.players[data.playerId - 1]
+        if (slot) {
+          slot.joined = true
+          slot.nickname = slot.nickname || data.nickname || ('玩家' + data.playerId)
+          slot.avatar = data.avatar || '🎭'
+        }
+        flashNewJoins(S.players)
+        broadcast({ type: 'ROOM_STATE', from: 'host_0', data: { room: S.room, players: S.players, game: S.game, heat: S.heat } })
+        render()
+        // AI welcome
+        const nm = data.nickname || ('玩家' + data.playerId)
+        const nms = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
+        callAI(`玩家"${nm}"刚刚加入了房间。现在房间里有：${nms}。请用一句欢迎的话，语气轻松幽默。`).then(t => {
+          if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
+        })
       }
       break
 
@@ -936,16 +980,23 @@ function handleMessage(msg) {
       }
       break
 
+    case 'AI_SAY':
+      aiSay(data.text, S.role === 'player' ? 'player-ai-comment' : 'ai-comment')
+      break
+
     case 'STEAL_ATTEMPT':
       if (S.role === 'host') {
         toast(`${data.playerId}号玩家发动了挖墙脚！`)
-        // Reduce heat for the targeted pair
         const topPair = Object.entries(S.heat).sort((a, b) => b[1] - a[1])[0]
         if (topPair) {
           S.heat[topPair[0]] = Math.max(0, topPair[1] - 20)
         }
         broadcast({ type: 'HEAT_UPDATED', from: 'host_0', data: { heat: S.heat } })
         renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
+        const nm = data.playerId + '号玩家'
+        callAI(`${nm}发动了挖墙脚！请用一句毒舌但不伤人的话评论这个行为。`).then(t => {
+          if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
+        })
       }
       break
 
@@ -1001,6 +1052,18 @@ function handleMessage(msg) {
     case 'GAME_ENDED':
       S.heat = data.heat || {}
       convergePlayers()
+      if (S.role === 'host') {
+        const topPairs = Object.entries(S.heat).sort((a,b) => b[1]-a[1]).slice(0,3)
+        const pNames = {}
+        S.players.filter(p => p.joined).forEach(p => { pNames[p.id] = p.nickname || ('玩家'+p.id) })
+        const pairStr = topPairs.map(([k,v]) => {
+          const [a,b] = k.split('-')
+          return (pNames[a]||a) + '和' + (pNames[b]||b) + '热度' + v
+        }).join('，')
+        callAI(`三六局游戏刚刚结束了！热度最高的配对是：${pairStr}。请用一段幽默八卦的文字总结这场游戏，2-3句话。`).then(t => {
+          if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
+        })
+      }
       break
   }
 }
@@ -1298,6 +1361,8 @@ function render() {
     }
     // Show/hide draw button based on whether question is already drawn
     $('console-draw-btn').style.display = S.game.question ? 'none' : ''
+    const aiBtn = $('console-ai-draw-btn')
+    if (aiBtn) aiBtn.style.display = S.game.question ? 'none' : ''
     // Show penalty/vote panel
     const penaltyPanel = $('penalty-panel')
     if (penaltyPanel) {
@@ -1469,8 +1534,28 @@ const App = {
     broadcast({ type: 'GAME_STARTED', from: 'host_0', data: { roomId: S.room.id, round: 1 } })
   },
 
-  hostDrawQuestion() {
+  hostDrawQuestion(useAI) {
     const round = S.room.round
+    if (useAI) {
+      const roundName = ROUND_NAMES[round] || ('第' + round + '轮')
+      const names = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
+      callAI(`你正在主持"三六局"游戏的第${round}轮（${roundName}）。在场玩家：${names}。请生成一道适合这个轮次的破冰问题，要能引发有趣的讨论。只返回问题本身，不要加任何前缀说明。`).then(q => {
+        if (q) {
+          S.game.question = q.trim()
+          S.game.questionLevel = 'AI'
+          S.game.timerEnd = Date.now() + 30000
+          S.game.timerRunning = true
+          if (round === 2) {
+            S.game.choiceQ = CHOICE_QS[Math.floor(Math.random() * CHOICE_QS.length)]
+            S.game.choiceResults = {}
+          } else { S.game.choiceQ = null }
+          render()
+          startTimerUI()
+          broadcast({ type: 'QUESTION', from: 'host_0', data: { question: q.trim(), level: 'AI', timerEnd: S.game.timerEnd, choiceQ: S.game.choiceQ || null } })
+        }
+      })
+      return
+    }
     let poolKey
     if (round === 1) poolKey = 'L1'
     else if (round === 2) poolKey = Math.random() < 0.5 ? 'L2' : 'L3'
@@ -1481,7 +1566,6 @@ const App = {
     S.game.questionLevel = poolKey.replace('L', '')
     S.game.timerEnd = Date.now() + 30000
     S.game.timerRunning = true
-    // Round 2: include a choice question
     if (round === 2) {
       S.game.choiceQ = CHOICE_QS[Math.floor(Math.random() * CHOICE_QS.length)]
       S.game.choiceResults = {}
