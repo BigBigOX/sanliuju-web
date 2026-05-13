@@ -558,6 +558,12 @@
   <div class="section-title">玩家暖心值</div>
   <div id="console-players"></div>
 
+  <div id="answered-picker" style="display:none;margin-top:12px;padding:12px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">✅ 本轮谁回答了？</div>
+    <div id="answered-btns" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    <button class="btn btn-ghost" id="answered-done-btn" onclick="App.hostConfirmAnswered()" style="width:100%;margin-top:8px;font-size:12px;">确认 → 看方向</button>
+  </div>
+
   <div id="direction-picker" style="display:none;margin-top:12px;padding:12px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);">
     <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">📊 大家的回答方向是？</div>
     <div id="direction-btns" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
@@ -1470,9 +1476,9 @@ function startTimerUI() {
       if (S.role === 'host') {
         const remain = Math.max(0, Math.ceil(((S.game.timerEnd || 0) - Date.now()) / 1000))
         broadcast({ type: 'TIMER_TICK', from: 'host_0', data: { timerRemaining: remain, timerRunning: false } })
-        // Generate answer direction options
-        if (S.game.question && !S.roundAnswers?.[S.room.round]) {
-          App.hostGenerateDirections()
+        // Show answered picker first, then directions
+        if (S.game.question && !S.roundAnswers?.[S.room.round]?.direction) {
+          App.hostShowAnsweredPicker()
         }
       }
     }
@@ -1843,6 +1849,44 @@ const App = {
     callAI(`三六局第${S.room.round}轮「${ROUND_NAMES[S.room.round]}」，题目"${S.game.question}"，大家的回答方向是"${direction}"。在场玩家：${names}。请用1句温暖的话点评这轮的氛围，结合36问递进逻辑。`, 0.8).then(t => {
       if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
     })
+  },
+
+  hostShowAnsweredPicker() {
+    if (!S.game.question) return
+    if (!S.roundAnswers) S.roundAnswers = {}
+    if (!S.roundAnswers[S.room.round]) S.roundAnswers[S.room.round] = { question: S.game.question, direction: null, answered: {} }
+    const others = S.players.filter(p => p.joined && !p.isHost)
+    $('answered-picker').style.display = ''
+    const current = S.roundAnswers[S.room.round].answered || {}
+    $('answered-btns').innerHTML = others.map(p => {
+      const checked = current[p.id] !== false // default = answered
+      return `<div onclick="App.hostToggleAnswered(${p.id})" data-aid="${p.id}" style="
+        display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 12px;
+        border-radius:12px;cursor:pointer;min-width:56px;transition:all .15s;
+        background:${checked?'var(--warm-light)':'#F5F5F4'};border:2px solid ${checked?'var(--warm)':'#E7E5E4'};">
+        <span style="font-size:24px;">${p.avatar||'🎭'}</span>
+        <span style="font-size:11px;font-weight:600;">${p.nickname||('玩家'+p.id)}</span>
+        <span style="font-size:14px;">${checked?'✅':'⏭️'}</span>
+      </div>`
+    }).join('')
+  },
+
+  hostToggleAnswered(pid) {
+    if (!S.roundAnswers?.[S.room.round]) return
+    const ans = S.roundAnswers[S.room.round].answered
+    ans[pid] = ans[pid] === false ? true : false
+    const el = document.querySelector(`[data-aid="${pid}"]`)
+    if (el) {
+      const checked = ans[pid] !== false
+      el.style.background = checked ? 'var(--warm-light)' : '#F5F5F4'
+      el.style.borderColor = checked ? 'var(--warm)' : '#E7E5E4'
+      el.querySelector('span:last-child').textContent = checked ? '✅' : '⏭️'
+    }
+  },
+
+  hostConfirmAnswered() {
+    $('answered-picker').style.display = 'none'
+    App.hostGenerateDirections()
   },
 
   hostGenerateDirections() {
