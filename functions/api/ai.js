@@ -17,7 +17,7 @@ export async function onRequest(context) {
     })
   }
 
-  const { prompt } = body || {}
+  const { prompt, temperature } = body || {}
   if (!prompt) {
     return new Response(JSON.stringify({ error: 'Missing prompt' }), {
       status: 400, headers: { 'Content-Type': 'application/json' }
@@ -54,7 +54,8 @@ export async function onRequest(context) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 300
+        max_tokens: 300,
+        temperature: temperature ?? 0.8
       })
     })
 

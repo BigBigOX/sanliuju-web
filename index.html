@@ -552,6 +552,11 @@
   <div class="section-title">玩家暖心值</div>
   <div id="console-players"></div>
 
+  <div id="direction-picker" style="display:none;margin-top:12px;padding:12px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">📊 大家的回答方向是？</div>
+    <div id="direction-btns" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+  </div>
+
   <div id="ai-comment" style="display:none;margin-top:12px;padding:10px 14px;background:linear-gradient(135deg,#FEF3C7,#FFF7ED);border-radius:12px;font-size:13px;color:#92400E;min-height:20px;"></div>
 
   <div id="penalty-panel" style="display:none;margin-top:16px;">
@@ -719,12 +724,14 @@ const CHOICE_QS = [
 // ============================================================
 // AI Helper
 // ============================================================
-async function callAI(prompt) {
+async function callAI(prompt, temperature) {
   try {
+    const body = { prompt }
+    if (temperature != null) body.temperature = temperature
     const resp = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify(body)
     })
     if (!resp.ok) return null
     const data = await resp.json()
@@ -1061,7 +1068,8 @@ function handleMessage(msg) {
           const [a,b] = k.split('-')
           return (pNames[a]||a) + '和' + (pNames[b]||b) + '热度' + v
         }).join('，')
-        callAI(`三六局36问完成了！热度最高的配对：${pairStr}。参考Arthur Aron的36问实验——通过渐进式自我披露可以培养亲密感。请用2-3句话总结这场游戏的默契成果，幽默八卦风格，可点评谁和谁产生了真正的化学反应。`).then(t => {
+        const dirs = S.roundAnswers ? Object.entries(S.roundAnswers).map(([k,v]) => `轮${k}："${v.question}"→${v.direction}`).join('；') : '无'
+        callAI(`三六局36问完成了！热度最高的配对：${pairStr}。各轮回答方向：${dirs}。参考Arthur Aron的36问实验——通过渐进式自我披露可以培养亲密感。请结合各轮实际回答方向，用2-3句话总结，幽默八卦风格。`, 0.8).then(t => {
           if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
         })
       }
@@ -1327,6 +1335,10 @@ function startTimerUI() {
       clearInterval(timerInterval)
       if (S.role === 'host') {
         broadcast({ type: 'TIMER_TICK', from: 'host_0', data: { timerEnd: S.game.timerEnd, timerRunning: false } })
+        // Generate answer direction options
+        if (S.game.question && !S.roundAnswers?.[S.room.round]) {
+          App.hostGenerateDirections()
+        }
       }
     }
   }, 200)
@@ -1503,7 +1515,7 @@ const App = {
 
   goEntry() {
     clearInterval(timerInterval)
-    S.profile = null; S.role = null; S.playerId = null; S.room = null; S.players = []; S.heat = {}; S.crush = {}; S.jealousy = {}; S.choiceResult = null; S.penalty = null; S.vote = null; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {}, choiceQ: null, choiceResults: {} }
+    S.profile = null; S.role = null; S.playerId = null; S.room = null; S.players = []; S.heat = {}; S.crush = {}; S.jealousy = {}; S.choiceResult = null; S.penalty = null; S.vote = null; S.roundAnswers = null; S.game = { question: null, questionLevel: null, timerEnd: null, timerRunning: false, pairs: null, sparks: {}, choiceQ: null, choiceResults: {} }
     _prevJoinedIds = new Set()
     renderProfileList()
     page('page-entry')
@@ -1540,13 +1552,14 @@ const App = {
     if (useAI) {
       const roundName = ROUND_NAMES[round] || ('第' + round + '轮')
       const names = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
-      callAI(`三六局游戏第${round}轮「${roundName}」。在场玩家：${names}。
+      const prevDirs = S.roundAnswers ? Object.values(S.roundAnswers).map(d => d.direction).join('、') : ''
+      callAI(`三六局游戏第${round}轮「${roundName}」。在场玩家：${names}。${prevDirs ? '前几轮大家的关注方向：' + prevDirs + '。请避免重复相似话题。' : ''}
 三六局的36问按心理学"渐进式自我披露"设计：
-- 轮一破冰：轻松日常，消除陌生感（如兴趣爱好、旅行、音乐）
-- 轮二结对：价值观和情感，建立信任（如友情观、成长经历、脆弱时刻）
-- 轮三默契：灵魂深度对话，检验默契（如生命意义、遗憾、自我认知）
+- 轮一破冰：轻松日常，消除陌生感
+- 轮二结对：价值观和情感，建立信任
+- 轮三默契：灵魂深度对话，检验默契
 
-请生成一道「${roundName}」级别的问题。只返回问题本身，不加前缀，一个问题不超过30字。`).then(q => {
+请生成一道「${roundName}」级别的问题。可以天马行空但要符合这轮的深度。只返回问题本身，不加前缀，不超过30字。`, 0.9).then(q => {
         if (q) {
           S.game.question = q.trim()
           S.game.questionLevel = 'AI'
@@ -1676,6 +1689,35 @@ const App = {
     broadcast({ type: 'VOTE_CAST', from: 'player_' + S.playerId, data: { playerId: S.playerId, choice: idx } })
     toast('已投票！')
     renderVotePanel()
+  },
+
+  // --- Answer direction picker ---
+  hostPickDirection(direction) {
+    if (!S.roundAnswers) S.roundAnswers = {}
+    S.roundAnswers[S.room.round] = { question: S.game.question, direction }
+    $('direction-picker').style.display = 'none'
+    toast('已记录：' + direction)
+    // AI commentary with direction context
+    const names = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
+    callAI(`三六局第${S.room.round}轮「${ROUND_NAMES[S.room.round]}」，题目"${S.game.question}"，大家的回答方向是"${direction}"。在场玩家：${names}。请用1句温暖的话点评这轮的氛围，结合36问递进逻辑。`, 0.8).then(t => {
+      if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
+    })
+  },
+
+  hostGenerateDirections() {
+    if (!S.game.question) return
+    $('direction-picker').style.display = ''
+    $('direction-btns').innerHTML = '<span style="color:var(--text2);font-size:12px;">AI 分析中…</span>'
+    const rn = ROUND_NAMES[S.room.round] || ('第'+S.room.round+'轮')
+    callAI(`三六局第${S.room.round}轮「${rn}」，题目："${S.game.question}"。请预测玩家可能的回答方向，给出3-4个简短标签（每个4-8字），覆盖常见回答方向。一行一个，纯文本，不加编号。`, 0.7).then(t => {
+      if (t) {
+        const lines = t.split('\n').filter(l => l.trim()).slice(0, 4)
+        if (lines.length === 0) lines.push('其他')
+        $('direction-btns').innerHTML = lines.map(l =>
+          `<button class="btn" style="flex:1;min-width:80px;padding:8px 12px;font-size:13px;background:var(--card);border:1px solid #E7E5E4;" onclick="App.hostPickDirection('${l.replace(/'/g, "\\'")}')">${l}</button>`
+        ).join('') + `<button class="btn" style="flex:1;min-width:80px;padding:8px 12px;font-size:13px;background:var(--card);border:1px solid #E7E5E4;" onclick="App.hostPickDirection('其他')">💬 其他</button>`
+      }
+    })
   },
 
   // --- Steal mechanic (round 2) ---
