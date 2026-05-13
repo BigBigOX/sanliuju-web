@@ -611,10 +611,14 @@
     </div>
     <div id="player-penalty-display" style="display:none;text-align:center;padding:12px;background:var(--card);border-radius:var(--radius);margin:8px 0;"></div>
     <div id="player-ai-comment" style="display:none;margin:8px 0;padding:10px 14px;background:linear-gradient(135deg,#FEF3C7,#FFF7ED);border-radius:12px;font-size:13px;color:#92400E;min-height:20px;"></div>
-    <div class="board-actions">
-      <button class="heart-btn" id="player-heart-btn" onclick="App.playerHeart()">❤️<br><small>暖心</small></button>
-      <button class="spark-btn" id="player-spark-btn" onclick="App.playerSpark()" style="display:none;">🔥<br><small>火花</small></button>
-      <button class="btn" id="player-steal-btn" onclick="App.playerSteal(0)" style="display:none;flex:1;padding:20px;border-radius:var(--radius);border:none;font-size:28px;cursor:pointer;background:#1C1917;color:#FBBF24;transition:transform .12s;">🗡️<br><small>挖墙脚</small></button>
+    <div id="player-react-area" style="text-align:center;">
+      <div id="react-prompt" style="font-size:13px;color:var(--text2);margin-bottom:8px;">谁的回答最打动你？</div>
+      <div id="react-targets" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"></div>
+      <div id="react-spark-area" style="display:none;margin-top:8px;">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">谁让你心动？</div>
+        <div id="spark-targets" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"></div>
+      </div>
+      <button class="btn" id="player-steal-btn" onclick="App.playerSteal(0)" style="display:none;margin-top:8px;padding:14px;border-radius:var(--radius);border:none;font-size:24px;cursor:pointer;background:#1C1917;color:#FBBF24;transition:transform .12s;">🗡️<br><small>挖墙脚</small></button>
     </div>
   </div>
 
@@ -964,6 +968,8 @@ function handleMessage(msg) {
       S.game.choiceQ = data.choiceQ || null
       S.game.choiceResults = {}
       S.choiceResult = null
+      S._heartedThisRound = false
+      S._sparkedThisRound = false
       render()
       startTimerUI()
       break
@@ -1369,6 +1375,54 @@ function renderPenaltyPanel() {
   }
 }
 
+function renderReactTargets() {
+  const area = $('react-targets')
+  const sparkArea = $('react-spark-area')
+  const sparkTargets = $('spark-targets')
+  if (!area) return
+  const others = S.players.filter(p => p.joined && p.id !== S.playerId && !p.isHost)
+  if (others.length === 0 || !S.game?.question) {
+    area.innerHTML = ''; if (sparkArea) sparkArea.style.display = 'none'; return
+  }
+  // Heart targets (round 1,2,3)
+  if (S._heartedThisRound) {
+    area.innerHTML = '<span style="font-size:12px;color:var(--success);">❤️ 已发送</span>'
+  } else {
+    area.innerHTML = others.map(p =>
+      `<div class="react-target" data-pid="${p.id}" onclick="App.playerHeart(${p.id})" style="
+        display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 14px;
+        background:var(--card);border-radius:12px;cursor:pointer;box-shadow:var(--shadow);
+        transition:transform .15s;min-width:60px;
+      " onmouseenter="this.style.transform='translateY(-3px)'" onmouseleave="this.style.transform=''">
+        <span style="font-size:28px;">${p.avatar||'🎭'}</span>
+        <span style="font-size:11px;font-weight:600;">${p.nickname||('玩家'+p.id)}</span>
+        <span style="font-size:18px;">❤️</span>
+      </div>`
+    ).join('')
+  }
+  // Spark targets (round 2 only)
+  if (sparkArea && S.room?.round === 2) {
+    sparkArea.style.display = ''
+    if (S._sparkedThisRound) {
+      sparkTargets.innerHTML = '<span style="font-size:12px;color:var(--success);">🔥 已发送</span>'
+    } else {
+      sparkTargets.innerHTML = others.map(p =>
+        `<div class="react-target" data-pid="${p.id}" onclick="App.playerSpark(${p.id})" style="
+          display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 14px;
+          background:var(--card);border-radius:12px;cursor:pointer;box-shadow:var(--shadow);
+          transition:transform .15s;min-width:60px;
+        " onmouseenter="this.style.transform='translateY(-3px)'" onmouseleave="this.style.transform=''">
+          <span style="font-size:28px;">${p.avatar||'🎭'}</span>
+          <span style="font-size:11px;font-weight:600;">${p.nickname||('玩家'+p.id)}</span>
+          <span style="font-size:18px;">🔥</span>
+        </div>`
+      ).join('')
+    }
+  } else if (sparkArea) {
+    sparkArea.style.display = 'none'
+  }
+}
+
 function renderPenaltyDisplay() {
   const el = $('player-penalty-display')
   if (!el) return
@@ -1498,16 +1552,14 @@ function render() {
         qEl.classList.add('empty')
       }
 
-      // Show spark button only in round 2
-      $('player-spark-btn').style.display = S.room.round === 2 ? '' : 'none'
+      // Render reaction targets (heart/spark avatars)
+      renderReactTargets()
       // Show steal button if jealous in round 2
       const stealBtn = $('player-steal-btn')
       if (stealBtn) {
         const jScore = S.jealousy?.[S.playerId] || 0
         stealBtn.style.display = (S.room.round === 2 && jScore > 0) ? '' : 'none'
-        if (jScore > 0) {
-          stealBtn.querySelector('small').textContent = `挖墙脚(${jScore})`
-        }
+        if (jScore > 0) stealBtn.querySelector('small').textContent = `挖墙脚(${jScore})`
       }
 
       // Choice question panel (round 2)
@@ -1862,36 +1914,40 @@ const App = {
     }, 500)
   },
 
-  playerHeart() {
+  playerHeart(targetId) {
     const nm = S.profile?.name || ('玩家' + S.playerId)
-    broadcast({ type: 'HEART', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: nm } })
-    toast('❤️ 暖心已发送！')
-    const btn = $('player-heart-btn')
-    if (btn) {
-      btn.classList.remove('flash')
-      void btn.offsetWidth
-      btn.classList.add('flash')
-      // Visual feedback: briefly change the emoji
-      const small = btn.querySelector('small')
-      if (small) { const orig = small.textContent; small.textContent = '已发送!'; setTimeout(() => { small.textContent = orig }, 1200) }
-    }
-    // Update local heat count immediately
-    if (!S._heartCount) S._heartCount = 0
-    S._heartCount++
+    const target = S.players.find(p => p.id === targetId)
+    const tnm = target?.nickname || ('玩家' + targetId)
+    broadcast({ type: 'HEART', from: 'player_' + S.playerId, data: { playerId: S.playerId, targetId, nickname: nm } })
+    toast(`❤️ 送给了 ${tnm}`)
+    // Flash the tapped avatar
+    document.querySelectorAll('.react-target').forEach(el => {
+      if (parseInt(el.dataset.pid) === targetId) {
+        el.classList.remove('slot-join-flash')
+        void el.offsetWidth
+        el.classList.add('slot-join-flash')
+      }
+    })
+    // Disable further hearts this round
+    S._heartedThisRound = true
+    renderReactTargets()
   },
 
-  playerSpark() {
+  playerSpark(targetId) {
     const nm = S.profile?.name || ('玩家' + S.playerId)
-    broadcast({ type: 'SPARK', from: 'player_' + S.playerId, data: { playerId: S.playerId, nickname: nm } })
-    toast('🔥 火花已发送！')
-    const btn = $('player-spark-btn')
-    if (btn) {
-      btn.classList.remove('flash')
-      void btn.offsetWidth
-      btn.classList.add('flash')
-      const small = btn.querySelector('small')
-      if (small) { const orig = small.textContent; small.textContent = '已发送!'; setTimeout(() => { small.textContent = orig }, 1200) }
-    }
+    const target = S.players.find(p => p.id === targetId)
+    const tnm = target?.nickname || ('玩家' + targetId)
+    broadcast({ type: 'SPARK', from: 'player_' + S.playerId, data: { playerId: S.playerId, targetId, nickname: nm } })
+    toast(`🔥 心动送给了 ${tnm}`)
+    document.querySelectorAll('.react-target').forEach(el => {
+      if (parseInt(el.dataset.pid) === targetId) {
+        el.classList.remove('slot-join-flash')
+        void el.offsetWidth
+        el.classList.add('slot-join-flash')
+      }
+    })
+    S._sparkedThisRound = true
+    renderReactTargets()
   },
 
   playerPickChoice(choice) {
