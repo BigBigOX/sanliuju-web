@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三六局 — 完整方案汇总</title>
+<style>
+  :root {
+    --warm: #F97316; --warm-light: #FFF7ED; --warm-dark: #EA580C;
+    --gold: #FBBF24; --bg: #FFFBF5; --card: #FFFFFF; --text: #1C1917; --text2: #78716C;
+    --radius: 12px; --shadow: 0 2px 16px rgba(0,0,0,.06);
+    --success: #22C55E; --danger: #EF4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.8;
+    max-width: 800px; margin: 0 auto; padding: 32px 20px;
+  }
+  h1 {
+    font-size: 32px; font-weight: 800;
+    background: linear-gradient(135deg, var(--warm), var(--warm-dark));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-size: 20px; font-weight: 700; margin-top: 40px; margin-bottom: 16px;
+    padding-bottom: 8px; border-bottom: 2px solid var(--warm-light);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin-top: 24px; margin-bottom: 8px; color: var(--warm-dark); }
+  .sub { color: var(--text2); font-size: 14px; margin-bottom: 32px; }
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700;
+  }
+  .badge-done { background: #DCFCE7; color: #15803D; }
+  .badge-wip  { background: var(--gold-light); color: #B45309; }
+  .badge-plan { background: #E0E7FF; color: #3730A3; }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 4px; color: var(--text2); }
+  li b { color: var(--text); }
+  .flow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+  .flow-step {
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    background: var(--warm-light); color: var(--warm-dark);
+  }
+  .flow-arrow { color: var(--text2); font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #F5F5F4; font-size: 14px; }
+  th { font-weight: 700; color: var(--text2); font-size: 12px; text-transform: uppercase; }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; margin-right: 4px;
+  }
+  .tag-css { background: #E0E7FF; color: #3730A3; }
+  .tag-js  { background: #FEF3C7; color: #92400E; }
+  .tag-html { background: #FCE7F3; color: #9D174D; }
+  .tag-api { background: #DCFCE7; color: #15803D; }
+  .tag-dep { background: #F3E8FF; color: #6B21A8; }
+</style>
+</head>
+<body>
+
+<h1>🦊 三六局</h1>
+<p class="sub">线下聚会破冰游戏 · 3轮36问 · 多标签页同步</p>
+
+<div class="card">
+  <b>部署状态</b>
+  <table>
+    <tr><th>平台</th><th>网址</th><th>说明</th></tr>
+    <tr><td>CF Pages</td><td><code>36.bigbigox.dpdns.org</code></td><td>生产环境，国内可访问</td></tr>
+    <tr><td>Vercel</td><td><code>sanliuju-web.vercel.app</code></td><td>备用，国内需代理</td></tr>
+    <tr><td>GitHub</td><td><code>github.com/BigBigOX/sanliuju-web</code></td><td>代码仓库</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>1. 核心游戏流程</h2>
+
+<div class="flow">
+  <span class="flow-step">🦊 选名字</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">🎤 主持 / 🎭 加入</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">房间等待</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">轮一：破冰</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">轮二：配对</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">轮三：默契</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">投票惩罚</span>
+  <span class="flow-arrow">→</span>
+  <span class="flow-step">默契报告</span>
+</div>
+
+<h3>房间机制</h3>
+<ul>
+  <li><b>房主</b>创建房间 → 自动生成 6 位房间号</li>
+  <li><b>玩家</b>输入房间号加入（2-6人，满3人可开局）</li>
+  <li><b>同步</b>：同一浏览器通过 <code>BroadcastChannel</code> 多标签页同步</li>
+  <li><b>房间状态</b>：waiting → playing → round 1/2/3 → ended</li>
+</ul>
+
+<h3>三轮设计</h3>
+<table>
+  <tr><th>轮次</th><th>名称</th><th>题库</th><th>特殊机制</th></tr>
+  <tr><td>1</td><td>破冰轮</td><td>L1 (30题) — 轻松日常</td><td>暖心互动，建立好感</td></tr>
+  <tr><td>2</td><td>结对轮</td><td>L2/L3 (60题) — 情感深度</td><td>二选一配对 + 🔥火花 + 🗡️挖墙脚</td></tr>
+  <tr><td>3</td><td>默契轮</td><td>L4 (30题) — 灵魂拷问</td><td>投票惩罚 + 投票暖心</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>2. 视觉动效系统</h2>
+
+<h3>浮动房间</h3>
+<ul>
+  <li><b>布局</b>：玩家以圆形头像游离在椭圆轨道上，替代传统 Grid 网格</li>
+  <li><b>漂浮动画</b>：每个玩家独立 CSS drift 动画（周期 3-6s，±8px 偏移）</li>
+  <li><b>热度引力</b>：高热度玩家对自动靠近，通过 CSS transition 平滑移动 (2.5s)</li>
+  <li><b>结算收敛</b>：游戏结束时最高热度对聚拢到中心，带绿色光环</li>
+  <li><b>加入闪光</b>：新玩家加入时弹跳动画 + 橙色光环</li>
+</ul>
+
+<h3>其他动效</h3>
+<table>
+  <tr><th>元素</th><th>效果</th></tr>
+  <tr><td>页面切换</td><td>fadeUp 入场动画 (0.35s)</td></tr>
+  <tr><td>房间号</td><td>模糊→清晰 reveal 动画</td></tr>
+  <tr><td>按钮</td><td>shimmer 光泽扫过 + hover 上浮 + active 缩放</td></tr>
+  <tr><td>开始游戏按钮</td><td>glowPulse 持续脉冲光环</td></tr>
+  <tr><td>计时器</td><td>≤10s 红色脉冲警告动画</td></tr>
+  <tr><td>问题卡片</td><td>slideInRight 滑入 + hover 上浮</td></tr>
+  <tr><td>暖心/火花按钮</td><td>点击弹跳 + 彩色光环扩散</td></tr>
+  <tr><td>背景</td><td>两个浮动渐变 orb 装饰</td></tr>
+  <tr><td>玩家悬停</td><td>scale(1.12) + 阴影增强</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>3. 玩家身份系统</h2>
+
+<ul>
+  <li><b>入口</b>：首页显示历史名字列表（localStorage 持久化）</li>
+  <li><b>创建</b>：输入名字 + 选 emoji 头像（12 个可选）→ 保存 profile</li>
+  <li><b>选择</b>：点击已有名字 → 进入角色选择页（主持/加入）</li>
+  <li><b>数据结构</b>：<code>{ id, name, avatar, customPenalties, createdAt, lastUsed }</code></li>
+  <li><b>存储</b>：localStorage key <code>slj_profiles</code></li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>4. 暖心值与热度系统</h2>
+
+<h3>暖心值</h3>
+<ul>
+  <li>房主可手动加减玩家暖心值（🪙）</li>
+  <li>投票暖心环节由全体投票决定谁获得暖心值</li>
+</ul>
+
+<h3>热度 (Heat)</h3>
+<ul>
+  <li><b>计算</b>：每对玩家之间的互动热度 (0-100)</li>
+  <li><b>触发</b>：❤️暖心 +10 热度 | 🔥火花 +20 热度</li>
+  <li><b>二选一</b>：选择相同的玩家对 +15 热度</li>
+  <li><b>引力</b>：热度 > 30 的玩家对在浮动房间中明显靠近</li>
+  <li><b>挖墙脚</b>：嫉妒玩家发动后降低最高热度对 20 点</li>
+</ul>
+
+<h3>好感 (Crush)</h3>
+<ul>
+  <li>记录谁对谁有好感（发送暖心/火花的目标）</li>
+  <li>用于计算嫉妒值</li>
+</ul>
+
+<h3>嫉妒 (Jealousy)</h3>
+<ul>
+  <li>轮一结束时计算：若有玩家喜欢的人与别人热度高 → 嫉妒 +1</li>
+  <li>嫉妒值在轮二显示，可消耗发动「挖墙脚」</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>5. 惩罚系统</h2>
+
+<h3>惩罚类别</h3>
+<table>
+  <tr><th>类别</th><th>图标</th><th>示例</th></tr>
+  <tr><td>表演</td><td>🎭</td><td>用三种不同的声调唱《小星星》</td></tr>
+  <tr><td>真心话</td><td>💬</td><td>最近一次对谁撒了谎？说了什么？</td></tr>
+  <tr><td>大冒险</td><td>⚡</td><td>做 10 个俯卧撑（或 15 个深蹲）</td></tr>
+  <tr><td>社交</td><td>🎯</td><td>给在场每个人一句真诚的夸奖</td></tr>
+</table>
+
+<h3>惩罚机制</h3>
+<ul>
+  <li><b>候选池</b>：系统 4 类各抽 1 题 + 所有玩家自定义模板随机抽取</li>
+  <li><b>投票</b>：全体玩家投票选出最终惩罚（房主发起）</li>
+  <li><b>自定义模板</b>：每个 profile 可编辑自己的惩罚模板（存 localStorage）</li>
+  <li><b>显示</b>：投票结束后所有玩家端展示惩罚结果</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>6. 投票机制</h2>
+
+<ul>
+  <li><b>类型</b>：🗳️投票惩罚 / 💗投票暖心</li>
+  <li><b>发起</b>：房主在轮三结束后触发</li>
+  <li><b>投票</b>：所有玩家各投 1 票，实时显示进度</li>
+  <li><b>公布</b>：全员投完后自动公布结果（含票数分布）</li>
+  <li><b>消息协议</b>：<code>VOTE_START</code> → <code>VOTE_CAST</code> → <code>VOTE_RESULT</code></li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>7. 挖墙脚玩法</h2>
+
+<ul>
+  <li><b>触发条件</b>：轮二 + 嫉妒值 > 0</li>
+  <li><b>效果</b>：消耗 1 点嫉妒值，降低最高热度配对 20 热度</li>
+  <li><b>加成</b>：发动者本轮二选一投票权重翻倍</li>
+  <li><b>UI</b>：玩家端显示黑色「🗡️挖墙脚」按钮，标注剩余次数</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>8. AI 模块 <span class="badge badge-plan">规划中</span></h2>
+
+<h3>模块一：AI 动态出题</h3>
+<ul>
+  <li>携带玩家名字、轮次、热度数据给 AI，生成 3 道候选</li>
+  <li>主持人选一道，保留静态题库 fallback</li>
+</ul>
+
+<h3>模块二：AI 评论员</h3>
+<ul>
+  <li>游戏事件触发 AI 生成八卦风格评论</li>
+  <li>事件：加入、暖心、火花、惩罚、投票、嫉妒、挖墙脚</li>
+</ul>
+
+<h3>模块三：AI 默契报告</h3>
+<ul>
+  <li>终局收集全量数据，AI 生成默契分析报告</li>
+  <li>最佳组合、暗恋未果、社交 MVP 等</li>
+</ul>
+
+<h3>模块四：AI 虚拟玩家（可选）</h3>
+<ul>
+  <li>人数不足时 AI 自动补位，有人设和头像</li>
+</ul>
+
+<h3>技术方案</h3>
+<ul>
+  <li>Vercel Function <code>api/ai.js</code> 做 API 代理</li>
+  <li>调用 Claude API (claude-haiku-4-5)</li>
+  <li>API Key 存 Vercel 环境变量</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>9. 技术架构</h2>
+
+<h3>通信协议 (BroadcastChannel)</h3>
+<table>
+  <tr><th>消息</th><th>发送者</th><th>说明</th></tr>
+  <tr><td><code>ROOM_STATE</code></td><td>Host</td><td>全量状态同步</td></tr>
+  <tr><td><code>ROOM_STATE_REQUEST</code></td><td>Player</td><td>请求状态同步</td></tr>
+  <tr><td><code>PLAYER_JOINED</code></td><td>Player</td><td>玩家加入（含名字头像）</td></tr>
+  <tr><td><code>GAME_STARTED</code></td><td>Host</td><td>游戏开始</td></tr>
+  <tr><td><code>QUESTION</code></td><td>Host</td><td>抽题（含二选一）</td></tr>
+  <tr><td><code>HEART</code></td><td>Player</td><td>送暖心</td></tr>
+  <tr><td><code>SPARK</code></td><td>Player</td><td>送火花</td></tr>
+  <tr><td><code>CHOICE_PICK</code></td><td>Player</td><td>二选一投票</td></tr>
+  <tr><td><code>HEAT_UPDATED</code></td><td>Host</td><td>热度更新</td></tr>
+  <tr><td><code>JEALOUSY_UPDATED</code></td><td>Host</td><td>嫉妒值更新</td></tr>
+  <tr><td><code>STEAL_ATTEMPT</code></td><td>Player</td><td>挖墙脚</td></tr>
+  <tr><td><code>VOTE_START</code></td><td>Host</td><td>发起投票</td></tr>
+  <tr><td><code>VOTE_CAST</code></td><td>Player</td><td>投票</td></tr>
+  <tr><td><code>VOTE_RESULT</code></td><td>Host</td><td>投票结果</td></tr>
+  <tr><td><code>ROUND_CHANGED</code></td><td>Host</td><td>轮次切换</td></tr>
+  <tr><td><code>GAME_ENDED</code></td><td>Host</td><td>游戏结束</td></tr>
+  <tr><td><code>COINS_UPDATED</code></td><td>Host</td><td>暖心值更新</td></tr>
+</table>
+
+<h3>文件结构</h3>
+<table>
+  <tr><th>文件</th><th>行数</th><th>说明</th></tr>
+  <tr><td><code>index.html</code></td><td>~1500</td><td>完整单文件应用 (HTML+CSS+JS)</td></tr>
+  <tr><td><code>questions.js</code></td><td>166</td><td>题库模块 (Node/小程序共用)</td></tr>
+  <tr><td><code>penalties.js</code></td><td>227</td><td>惩罚模块 (Node/小程序共用)</td></tr>
+  <tr><td><code>api/ai.js</code></td><td>~60</td><td>Vercel Function AI 代理 <span class="badge badge-plan">新增</span></td></tr>
+</table>
+
+<h3>技术标签</h3>
+<div>
+  <span class="tag tag-css">CSS Variables</span>
+  <span class="tag tag-css">CSS Animations</span>
+  <span class="tag tag-js">BroadcastChannel</span>
+  <span class="tag tag-js">localStorage</span>
+  <span class="tag tag-js">Vanilla JS</span>
+  <span class="tag tag-html">Single File</span>
+  <span class="tag tag-api">Vercel Functions</span>
+  <span class="tag tag-api">Claude API</span>
+  <span class="tag tag-dep">Zero Dependencies</span>
+</div>
+
+<hr style="margin:40px 0;border:none;border-top:1px solid #E7E5E4;">
+<p style="color:var(--text2);font-size:12px;text-align:center;">
+  三六局 Sanliuju · 最后更新 2026-05-13
+</p>
+
+</body>
+</html>
