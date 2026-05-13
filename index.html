@@ -915,7 +915,8 @@ function handleMessage(msg) {
         renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
           // AI comment
         const names = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
-        callAI(`${nm}在游戏轮${S.room.round}中送出了${type === 'HEART' ? '暖心' : '火花'}。在场玩家：${names}。请用一句八卦风格的话评论这件事。`).then(t => {
+        const rn = ROUND_NAMES[S.room.round] || ('第'+S.room.round+'轮')
+        callAI(`「${rn}」中${nm}送出了${type === 'HEART' ? '暖心' : '火花'}。在场玩家：${names}。三六局游戏通过36个问题让参与者从陌生走向亲密，暖心代表共鸣和支持。请用一句温暖八卦的话评论。`).then(t => {
           if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
         })
       }
@@ -935,7 +936,7 @@ function handleMessage(msg) {
         // AI welcome
         const nm = data.nickname || ('玩家' + data.playerId)
         const nms = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
-        callAI(`玩家"${nm}"刚刚加入了房间。现在房间里有：${nms}。请用一句欢迎的话，语气轻松幽默。`).then(t => {
+        callAI(`玩家"${nm}"加入了三六局房间。在场玩家：${nms}。三六局的36个问题将引导大家从破冰走向深度了解。请用一句幽默欢迎语，暗示接下来的36问之旅。`).then(t => {
           if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
         })
       }
@@ -994,7 +995,7 @@ function handleMessage(msg) {
         broadcast({ type: 'HEAT_UPDATED', from: 'host_0', data: { heat: S.heat } })
         renderFloatRoom('host-player-room', S.players, S.room.maxPlayers, false)
         const nm = data.playerId + '号玩家'
-        callAI(`${nm}发动了挖墙脚！请用一句毒舌但不伤人的话评论这个行为。`).then(t => {
+        callAI(`轮二「结对轮」中${nm}发动了挖墙脚——TA看到自己有好感的人跟别人默契更高，选择出手干预。请用一句毒舌但不伤人的话评论，体现36问游戏中情感张力的趣味。`).then(t => {
           if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
         })
       }
@@ -1060,7 +1061,7 @@ function handleMessage(msg) {
           const [a,b] = k.split('-')
           return (pNames[a]||a) + '和' + (pNames[b]||b) + '热度' + v
         }).join('，')
-        callAI(`三六局游戏刚刚结束了！热度最高的配对是：${pairStr}。请用一段幽默八卦的文字总结这场游戏，2-3句话。`).then(t => {
+        callAI(`三六局36问完成了！热度最高的配对：${pairStr}。参考Arthur Aron的36问实验——通过渐进式自我披露可以培养亲密感。请用2-3句话总结这场游戏的默契成果，幽默八卦风格，可点评谁和谁产生了真正的化学反应。`).then(t => {
           if (t) { aiSay(t); broadcast({ type: 'AI_SAY', from: 'host_0', data: { text: t } }) }
         })
       }
@@ -1539,7 +1540,13 @@ const App = {
     if (useAI) {
       const roundName = ROUND_NAMES[round] || ('第' + round + '轮')
       const names = S.players.filter(p => p.joined).map(p => p.nickname || ('玩家'+p.id)).join('、')
-      callAI(`你正在主持"三六局"游戏的第${round}轮（${roundName}）。在场玩家：${names}。请生成一道适合这个轮次的破冰问题，要能引发有趣的讨论。只返回问题本身，不要加任何前缀说明。`).then(q => {
+      callAI(`三六局游戏第${round}轮「${roundName}」。在场玩家：${names}。
+三六局的36问按心理学"渐进式自我披露"设计：
+- 轮一破冰：轻松日常，消除陌生感（如兴趣爱好、旅行、音乐）
+- 轮二结对：价值观和情感，建立信任（如友情观、成长经历、脆弱时刻）
+- 轮三默契：灵魂深度对话，检验默契（如生命意义、遗憾、自我认知）
+
+请生成一道「${roundName}」级别的问题。只返回问题本身，不加前缀，一个问题不超过30字。`).then(q => {
         if (q) {
           S.game.question = q.trim()
           S.game.questionLevel = 'AI'
