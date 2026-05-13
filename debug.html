@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三六局 — 调试监控</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root { --bg:#0D1117; --card:#161B22; --border:#30363D; --text:#C9D1D9; --text2:#8B949E; --green:#3FB950; --red:#F85149; --yellow:#D29922; --blue:#58A6FF; --purple:#BC8CFF; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; background:var(--bg); color:var(--text); padding:16px; font-size:12px; }
+  h1 { font-size:16px; margin-bottom:16px; color:var(--blue); }
+  .panel { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px; }
+  .panel h2 { font-size:13px; color:var(--text2); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot-live { background:var(--green); animation:pulse 2s infinite; }
+  .dot-dead { background:var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .row { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(48,54,61,.5); }
+  .row .k { color:var(--text2); }
+  .row .v { color:var(--text); max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .log-item { padding:3px 6px; margin:2px 0; border-radius:3px; font-size:11px; display:flex; gap:8px; }
+  .log-msg  { background:rgba(88,166,255,.08); }
+  .log-err  { background:rgba(248,81,73,.1); color:var(--red); }
+  .log-sys  { background:rgba(61,130,80,.08); color:var(--green); }
+  .log-time { color:var(--text2); min-width:70px; }
+  .log-type { font-weight:700; min-width:120px; }
+  .log-from { color:var(--yellow); min-width:70px; }
+  .log-data { color:var(--text2); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .heat-bar { height:6px; background:var(--border); border-radius:3px; margin:2px 0; }
+  .heat-bar div { height:100%; border-radius:3px; transition:width .5s; }
+  .controls { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .controls input, .controls button { padding:6px 10px; border-radius:4px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:inherit; font-size:12px; }
+  .controls button { cursor:pointer; }
+  .controls button:hover { background:var(--border); }
+  #state-json { max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all; font-size:11px; color:var(--text2); }
+  .badge { padding:1px 6px; border-radius:10px; font-size:10px; font-weight:700; }
+  .b-ok { background:rgba(63,185,80,.15); color:var(--green); }
+  .b-warn { background:rgba(210,153,34,.15); color:var(--yellow); }
+</style>
+</head>
+<body>
+
+<h1>🔍 三六局 调试监控</h1>
+
+<div class="controls">
+  <span style="color:var(--text2);">房间号:</span>
+  <input id="room-input" placeholder="输入房间号" maxlength="6" style="width:120px;">
+  <button onclick="joinDebug()">监听房间</button>
+  <button onclick="leaveDebug()">断开</button>
+  <span style="margin-left:16px;">状态:</span>
+  <span id="conn-status"><span class="dot dot-dead"></span> 未连接</span>
+  <span id="msg-count" style="color:var(--text2);margin-left:16px;">消息: 0</span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+
+  <div class="panel" style="grid-column:1/-1;">
+    <h2>📨 消息日志</h2>
+    <div id="log" style="max-height:300px;overflow-y:auto;"></div>
+  </div>
+
+  <div class="panel">
+    <h2>🎮 游戏状态</h2>
+    <div id="state">
+      <div class="row"><span class="k">角色</span><span class="v" id="st-role">-</span></div>
+      <div class="row"><span class="k">房间</span><span class="v" id="st-room">-</span></div>
+      <div class="row"><span class="k">轮次</span><span class="v" id="st-round">-</span></div>
+      <div class="row"><span class="k">计时</span><span class="v" id="st-timer">-</span></div>
+      <div class="row"><span class="k">题目</span><span class="v" id="st-question">-</span></div>
+      <div class="row"><span class="k">投票</span><span class="v" id="st-vote">-</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>👥 玩家列表 & 热度</h2>
+    <div id="players"></div>
+  </div>
+
+  <div class="panel">
+    <h2>💕 好感 / 😈 嫉妒</h2>
+    <div id="social"></div>
+  </div>
+
+  <div class="panel" style="grid-column:1/-1;">
+    <h2>📋 完整 State JSON</h2>
+    <div id="state-json">等待连接…</div>
+  </div>
+
+</div>
+
+<script>
+const SB_URL = 'https://qrqhooyjbynicwycttfi.supabase.co'
+const SB_KEY = 'sb_publishable_LhnO7BuftYRFwignp2fGtA_m_c0Gkxl'
+let sb = null, channel = null, msgCount = 0, lastState = {}
+
+function getSB() {
+  if (!sb && window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY)
+  return sb
+}
+
+function log(type, msg) {
+  msgCount++
+  document.getElementById('msg-count').textContent = '消息: ' + msgCount
+  const el = document.getElementById('log')
+  const time = new Date().toLocaleTimeString()
+  const cls = type === 'ERROR' ? 'log-err' : type === 'SYSTEM' ? 'log-sys' : 'log-msg'
+  const dataStr = typeof msg.data === 'object' ? JSON.stringify(msg.data).slice(0, 100) : String(msg.data || '').slice(0, 100)
+  el.innerHTML += `<div class="log-item ${cls}">
+    <span class="log-time">${time}</span>
+    <span class="log-type">${msg.type || type}</span>
+    <span class="log-from">${msg.from || '-'}</span>
+    <span class="log-data">${dataStr}</span>
+  </div>`
+  el.scrollTop = el.scrollHeight
+  // Keep only last 100
+  if (el.children.length > 100) el.removeChild(el.firstChild)
+}
+
+function updateState(s) {
+  lastState = s
+  const p = s.players || []
+  const joined = p.filter(x => x.joined)
+  document.getElementById('st-role').textContent = s.role || '-'
+  document.getElementById('st-room').textContent = s.room?.id + ' (' + (s.room?.status || '-') + ')' || '-'
+  document.getElementById('st-round').textContent = s.room?.round || '-'
+  const remain = s.game?.timerRunning ? Math.max(0, Math.ceil(((s.game?.timerEnd||0) - Date.now())/1000)) : '-'
+  document.getElementById('st-timer').innerHTML = remain + 's <span class="badge ' + (s.game?.timerRunning ? 'b-ok' : 'b-warn') + '">' + (s.game?.timerRunning ? '运行' : '停止') + '</span>'
+  document.getElementById('st-question').textContent = (s.game?.question || '无') + (s.game?.questionLevel ? ' [L' + s.game.questionLevel + ']' : '')
+  document.getElementById('st-vote').textContent = s.vote ? (s.vote.type + (s.vote.open ? ' 投票中' : ' 已结束')) : '无'
+
+  // Players
+  let ph = ''
+  joined.forEach(p => {
+    ph += `<div style="margin-bottom:4px;">${p.avatar||'🎭'} <b>${p.nickname||('玩家'+p.id)}</b> ${p.isHost?'👑':''} 🪙${p.coins||0}`
+    if (s.heat) {
+      joined.forEach(p2 => {
+        if (p.id < p2.id) {
+          const k = (p.id < p2.id) ? (p.id + '-' + p2.id) : (p2.id + '-' + p.id)
+          const h = s.heat[k] || 0
+          if (h > 0) {
+            const color = h > 70 ? 'var(--red)' : h > 40 ? 'var(--yellow)' : 'var(--green)'
+            ph += `<div class="heat-bar"><div style="width:${h}%;background:${color};"></div></div>`
+            ph += `<span style="font-size:10px;color:var(--text2);">${p.nickname||p.id} ↔ ${p2.nickname||p2.id}: ${h}</span>`
+          }
+        }
+      })
+    }
+    ph += '</div>'
+  })
+  document.getElementById('players').innerHTML = ph || '<span style="color:var(--text2)">暂无玩家</span>'
+
+  // Social
+  let sh = ''
+  if (s.crush) {
+    sh += '<div style="margin-bottom:8px;"><b>好感:</b> '
+    Object.entries(s.crush).forEach(([pid, targets]) => {
+      sh += `玩家${pid}→[${targets.join(',')}] `
+    })
+    sh += '</div>'
+  }
+  if (s.jealousy) {
+    sh += '<div><b>嫉妒:</b> '
+    Object.entries(s.jealousy).forEach(([pid, score]) => {
+      sh += `玩家${pid}: ${score} `
+    })
+    sh += '</div>'
+  }
+  document.getElementById('social').innerHTML = sh || '<span style="color:var(--text2)">无数据</span>'
+
+  document.getElementById('state-json').textContent = JSON.stringify(s, null, 2)
+}
+
+function handleMessage(msg) {
+  const { type, from, data } = msg
+  if (from && from.startsWith('debug')) return
+  log('MSG', msg)
+
+  if (type === 'ROOM_STATE' && data) {
+    updateState({ role: 'observer', room: data.room, players: data.players, game: data.game, heat: data.heat, crush: data.crush, jealousy: data.jealousy, vote: data.vote || null, roundAnswers: data.roundAnswers || null, penalty: data.penalty || null })
+  }
+}
+
+function joinDebug() {
+  const roomId = document.getElementById('room-input').value.trim()
+  if (!roomId) { alert('输入房间号'); return }
+  const client = getSB()
+  if (!client) { alert('Supabase SDK 未加载'); return }
+  if (channel) channel.unsubscribe()
+  channel = client.channel('room:' + roomId)
+  channel.on('broadcast', { event: 'msg' }, (payload) => handleMessage(payload.payload))
+  channel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      document.getElementById('conn-status').innerHTML = '<span class="dot dot-live"></span> 已连接'
+      log('SYSTEM', { type:'CONNECT', data:'Joined room:' + roomId })
+    }
+    if (status === 'CHANNEL_ERROR') {
+      document.getElementById('conn-status').innerHTML = '<span class="dot dot-dead"></span> 错误'
+      log('ERROR', { type:'CHANNEL_ERROR', data:status })
+    }
+  })
+}
+
+function leaveDebug() {
+  if (channel) { channel.unsubscribe(); channel = null }
+  document.getElementById('conn-status').innerHTML = '<span class="dot dot-dead"></span> 未连接'
+  log('SYSTEM', { type:'DISCONNECT', data:'Left room' })
+}
+
+// Auto-join from URL param
+const params = new URLSearchParams(window.location.search)
+const room = params.get('room')
+if (room) {
+  document.getElementById('room-input').value = room
+  setTimeout(joinDebug, 500)
+}
+</script>
+</body>
+</html>
