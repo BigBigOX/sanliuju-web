@@ -24,7 +24,7 @@ export async function onRequest(context) {
     })
   }
 
-  const AI_BASE = 'http://8.156.76.147:3456/v1'
+  const AI_BASE = 'http://ai.bigbigox.dpdns.org:3456/v1'
 
   const systemPrompt = `你是"三六局"聚会破冰游戏的AI助手。你是一个幽默、八卦、温暖的角色，负责为游戏增加趣味性。
 - 语气风格：轻松、八卦、偶尔毒舌但不伤人
