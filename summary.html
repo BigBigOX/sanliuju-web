@@ -300,21 +300,31 @@ Arthur Aron的"36个问题让陌生人相爱"实验。游戏分3轮，每轮12�
 跟别人默契更高，选择出手干预。
 请用一句毒舌但不伤人的话评论，体现36问游戏中情感张力的趣味。</pre>
 
-<h3>4) AI 动态出题</h3>
+<h3>4) AI 动态出题 <span style="font-size:12px;color:var(--warm);">temperature=0.9</span></h3>
 <pre style="background:#1C1917;color:#F5F5F4;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre-wrap;">三六局游戏第${round}轮「${roundName}」。在场玩家：${names}。
+${前几轮方向总结}
 三六局的36问按心理学"渐进式自我披露"设计：
-- 轮一破冰：轻松日常，消除陌生感（如兴趣爱好、旅行、音乐）
-- 轮二结对：价值观和情感，建立信任（如友情观、成长经历、脆弱时刻）
-- 轮三默契：灵魂深度对话，检验默契（如生命意义、遗憾、自我认知）
+- 轮一破冰：轻松日常，消除陌生感
+- 轮二结对：价值观和情感，建立信任
+- 轮三默契：灵魂深度对话，检验默契
 
-请生成一道「${roundName}」级别的问题。
-只返回问题本身，不加前缀，一个问题不超过30字。</pre>
+请生成一道「${roundName}」级别的问题。可以天马行空但要符合这轮的深度。
+只返回问题本身，不加前缀，不超过30字。</pre>
 
-<h3>5) AI 默契报告（游戏结束）</h3>
+<h3>5) AI 答案方向识别 <span style="color:var(--success);font-weight:700;">NEW</span></h3>
+<p>计时归零时自动触发。AI 根据题目预测 3-4 个回答方向，主持人看一眼现场点最接近的。</p>
+<pre style="background:#1C1917;color:#F5F5F4;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre-wrap;">三六局第N轮「轮次名」，题目："xxx"。
+请预测玩家可能的回答方向，给出3-4个简短标签（每个4-8字），
+覆盖常见回答方向。一行一个，纯文本，不加编号。</pre>
+<p>主持人选择后触发评论：</p>
+<pre style="background:#1C1917;color:#F5F5F4;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre-wrap;">三六局第N轮「轮次名」，题目"xxx"，大家的回答方向是"yyy"。
+在场玩家：${names}。请用1句温暖的话点评这轮的氛围，结合36问递进逻辑。</pre>
+
+<h3>6) AI 默契报告（游戏结束）</h3>
 <pre style="background:#1C1917;color:#F5F5F4;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre-wrap;">三六局36问完成了！热度最高的配对：${pairStr}。
+各轮回答方向：${各轮方向汇总}。
 参考Arthur Aron的36问实验——通过渐进式自我披露可以培养亲密感。
-请用2-3句话总结这场游戏的默契成果，幽默八卦风格，
-可点评谁和谁产生了真正的化学反应。</pre>
+请结合各轮实际回答方向，用2-3句话总结，幽默八卦风格。</pre>
 
 <h3>技术实现</h3>
 <ul>
