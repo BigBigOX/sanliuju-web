@@ -957,7 +957,7 @@ function handleMessage(msg) {
     case 'QUESTION':
       S.game.question = data.question
       S.game.questionLevel = data.level
-      S.game.timerEnd = data.timerEnd
+      S.game.timerEnd = Date.now() + (data.timerRemaining || 30) * 1000
       S.game.timerRunning = true
       S.game.choiceQ = data.choiceQ || null
       S.game.choiceResults = {}
@@ -967,7 +967,7 @@ function handleMessage(msg) {
       break
 
     case 'TIMER_TICK':
-      S.game.timerEnd = data.timerEnd
+      S.game.timerEnd = Date.now() + (data.timerRemaining || 0) * 1000
       S.game.timerRunning = data.timerRunning
       render()
       if (S.game.timerRunning) startTimerUI()
@@ -1412,7 +1412,8 @@ function startTimerUI() {
       S.game.timerRunning = false
       clearInterval(timerInterval)
       if (S.role === 'host') {
-        broadcast({ type: 'TIMER_TICK', from: 'host_0', data: { timerEnd: S.game.timerEnd, timerRunning: false } })
+        const remain = Math.max(0, Math.ceil(((S.game.timerEnd || 0) - Date.now()) / 1000))
+        broadcast({ type: 'TIMER_TICK', from: 'host_0', data: { timerRemaining: remain, timerRunning: false } })
         // Generate answer direction options
         if (S.game.question && !S.roundAnswers?.[S.room.round]) {
           App.hostGenerateDirections()
@@ -1651,7 +1652,7 @@ const App = {
           } else { S.game.choiceQ = null }
           render()
           startTimerUI()
-          broadcast({ type: 'QUESTION', from: 'host_0', data: { question: q.trim(), level: 'AI', timerEnd: S.game.timerEnd, choiceQ: S.game.choiceQ || null } })
+          broadcast({ type: 'QUESTION', from: 'host_0', data: { question: q.trim(), level: 'AI', timerRemaining: 30, timerStarted: Date.now(), choiceQ: S.game.choiceQ || null } })
         }
       })
       return
@@ -1676,7 +1677,7 @@ const App = {
     startTimerUI()
     broadcast({ type: 'QUESTION', from: 'host_0', data: {
       question, level: poolKey.replace('L',''),
-      timerEnd: S.game.timerEnd,
+      timerRemaining: 30, timerStarted: Date.now(),
       choiceQ: S.game.choiceQ || null
     }})
   },
