@@ -599,24 +599,11 @@ function handleMessage(msg) {
 // ============================================================
 function $(id) { return document.getElementById(id) }
 
-let _prevPage = null
 function page(name) {
-  const all = document.querySelectorAll('.page')
-  all.forEach(p => {
-    if (p.classList.contains('active') && p.id !== name) {
-      p.classList.add('exit-left')
-      p.addEventListener('animationend', function h() {
-        p.removeEventListener('animationend', h)
-        p.classList.remove('active', 'exit-left')
-      }, { once: true })
-    } else if (p.id !== name) {
-      p.classList.remove('active', 'exit-left')
-    }
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active', 'exit-left')
   })
-  // Small delay so exit animation starts before enter
-  setTimeout(() => {
-    $(name).classList.add('active')
-  }, 50)
+  $(name).classList.add('active')
 }
 
 function toast(msg) {
