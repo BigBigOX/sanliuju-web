@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "@supabase/supabase-js": "^2.105.4"
+    "@supabase/supabase-js": "^2.105.4",
+    "music-metadata": "^11.12.3",
+    "playwright": "^1.60.0"
   }
 }

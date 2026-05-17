@@ -3,293 +3,173 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三六局 — 方案汇总</title>
+<title>三六局 V2 — 技术方案</title>
 <style>
   :root {
     --warm: #F97316; --warm-light: #FFF7ED; --warm-dark: #EA580C;
     --gold: #FBBF24; --bg: #FFFBF5; --card: #FFFFFF; --text: #1C1917; --text2: #78716C;
-    --radius: 12px; --shadow: 0 2px 16px rgba(0,0,0,.06);
-    --success: #22C55E;
+    --radius: 12px; --shadow: 0 2px 16px rgba(0,0,0,.06); --success: #22C55E;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.8;
-    max-width: 800px; margin: 0 auto; padding: 32px 20px;
-  }
-  h1 {
-    font-size: 32px; font-weight: 800;
-    background: linear-gradient(135deg, var(--warm), var(--warm-dark));
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    margin-bottom: 8px;
-  }
-  h2 {
-    font-size: 20px; font-weight: 700; margin-top: 40px; margin-bottom: 16px;
-    padding-bottom: 8px; border-bottom: 2px solid var(--warm-light);
-  }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; max-width: 800px; margin: 0 auto; padding: 32px 20px; }
+  h1 { font-size: 32px; font-weight: 800; background: linear-gradient(135deg,var(--warm),var(--warm-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  h2 { font-size: 20px; font-weight: 700; margin-top: 40px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--warm-light); }
   h3 { font-size: 16px; font-weight: 700; margin-top: 24px; margin-bottom: 8px; color: var(--warm-dark); }
   .sub { color: var(--text2); font-size: 14px; margin-bottom: 32px; }
-  .card {
-    background: var(--card); border-radius: var(--radius);
-    padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow);
-  }
-  .badge {
-    display: inline-block; padding: 2px 10px; border-radius: 20px;
-    font-size: 11px; font-weight: 700;
-  }
+  .card { background: var(--card); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
   .badge-done { background: #DCFCE7; color: #15803D; }
-  .badge-new  { background: #FEF3C7; color: #92400E; }
-  ul, ol { padding-left: 20px; }
-  li { margin-bottom: 4px; color: var(--text2); }
-  li b { color: var(--text); }
+  ul, ol { padding-left: 20px; } li { margin-bottom: 4px; color: var(--text2); } li b { color: var(--text); }
   .flow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
-  .flow-step {
-    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
-    background: var(--warm-light); color: var(--warm-dark);
-  }
+  .flow-step { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; background: var(--warm-light); color: var(--warm-dark); }
   .flow-arrow { color: var(--text2); font-weight: 700; }
   table { width: 100%; border-collapse: collapse; margin: 12px 0; }
   th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #F5F5F4; font-size: 14px; }
   th { font-weight: 700; color: var(--text2); font-size: 12px; text-transform: uppercase; }
-  .tag {
-    display: inline-block; padding: 2px 8px; border-radius: 4px;
-    font-size: 11px; font-weight: 600; margin-right: 4px;
-  }
-  .tag-css { background: #E0E7FF; color: #3730A3; }
-  .tag-js  { background: #FEF3C7; color: #92400E; }
-  .tag-html { background: #FCE7F3; color: #9D174D; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+  .tag-js { background: #FEF3C7; color: #92400E; }
   .tag-api { background: #DCFCE7; color: #15803D; }
   .tag-dep { background: #F3E8FF; color: #6B21A8; }
+  .tag-css { background: #E0E7FF; color: #3730A3; }
   pre { background:#1C1917;color:#F5F5F4;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre-wrap; }
-  .pitch { background:linear-gradient(135deg,var(--warm-light),#FFFBEB);border-radius:var(--radius);padding:24px;margin-bottom:24px; }
-  .pitch h2 { margin-top:0;border:none; }
 </style>
 </head>
 <body>
 
-<h1>🦊 三六局</h1>
-<p class="sub">线下聚会破冰游戏 · 灵感源自 Arthur Aron「36问」实验</p>
+<h1>🦊 三六局 V2</h1>
+<p class="sub">AI 主持人驱动的聚会破冰游戏 · 模块化架构 · 目标平台 微信小程序</p>
 
 <!-- ============================================================ -->
-<div class="pitch">
-<h2>这个游戏在做什么</h2>
+<div class="card" style="border-left:4px solid var(--warm);">
+<h2 style="margin-top:0;border:none;">核心架构</h2>
 <p style="font-size:15px;color:var(--warm-dark);font-weight:600;">
-  让一群刚认识或半生不熟的人，在 3 轮共 36 个渐进式问题中，
-  从轻松日常聊到灵魂深处，自然地产生默契和亲密感。
-</p>
-<p style="margin-top:8px;color:var(--text2);font-size:14px;">
-  手机只是记分板 + 遥控器。所有人面对面聊天，眼睛看的是人，不是屏幕。
+  AI 担任主持人，全权驱动游戏进程。人类降级为「超级管理员」——只控制节奏和越权干预。
+  模块化设计，每模块 &lt;500 行，移植微信小程序时仅需替换 UI 层和存储适配器。
 </p>
 </div>
 
 <!-- ============================================================ -->
-<h2>1. 怎么玩</h2>
+<h2>模块结构</h2>
+
+<table>
+  <tr><th>层</th><th>文件</th><th>行数</th><th>职责</th><th>移植</th></tr>
+  <tr><td>data/</td><td>constants.js, penalties.js</td><td>254</td><td>常量、惩罚词库</td><td>✅ 直接复用</td></tr>
+  <tr><td>state/</td><td>game-state.js</td><td>170</td><td>全局状态管理 + 持久化</td><td>⚠️ 换 storage 适配器</td></tr>
+  <tr><td>engine/</td><td>round-manager, match-calc, penalty-engine</td><td>288</td><td>游戏逻辑（纯函数）</td><td>✅ 直接复用</td></tr>
+  <tr><td>ai/</td><td>prompt-templates.js, ai-client.js</td><td>295</td><td>AI 通信 + Prompt 管理</td><td>⚠️ fetch→wx.request</td></tr>
+  <tr><td>channel/</td><td>supabase-channel.js</td><td>121</td><td>Supabase Realtime 消息总线</td><td>⚠️ 小程序版 SDK</td></tr>
+  <tr><td>ui/</td><td>renderer.js</td><td>260</td><td>DOM 渲染</td><td>❌ 整体替换为 WXML</td></tr>
+  <tr><td>app/</td><td>actions.js</td><td>410</td><td>编排层 + 消息处理</td><td>⚠️ 事件绑定替换</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>游戏循环</h2>
 
 <div class="flow">
-  <span class="flow-step">🦊 选身份</span>
-  <span class="flow-arrow">→</span>
-  <span class="flow-step">🎤 主持 / 🎭 加入</span>
-  <span class="flow-arrow">→</span>
-  <span class="flow-step">轮一 破冰</span>
-  <span class="flow-arrow">→</span>
-  <span class="flow-step">轮二 配对</span>
-  <span class="flow-arrow">→</span>
-  <span class="flow-step">轮三 默契</span>
-  <span class="flow-arrow">→</span>
-  <span class="flow-step">投票惩罚</span>
-  <span class="flow-arrow">→</span>
-  <span class="flow-step">默契报告</span>
+  <span class="flow-step">AI 出题</span><span class="flow-arrow">→</span>
+  <span class="flow-step">30s 计时</span><span class="flow-arrow">→</span>
+  <span class="flow-step">自动分析</span><span class="flow-arrow">→</span>
+  <span class="flow-step">匹配结果</span><span class="flow-arrow">→</span>
+  <span class="flow-step">阈值检测</span><span class="flow-arrow">→</span>
+  <span class="flow-step">惩罚投票</span><span class="flow-arrow">→</span>
+  <span class="flow-step">本轮结算</span><span class="flow-arrow">→</span>
+  <span class="flow-step">下一轮</span>
 </div>
 
-<h3>准备</h3>
-<ol>
-  <li>所有人用同一浏览器打开 <b>36.bigbigox.dpdns.org</b>（推荐 Chrome）</li>
-  <li>各自选或创建身份（名字 + emoji 头像，会记住下次不用重填）</li>
-  <li>一人点「主持聚会」创建房间，其余点「加入聚会」输入 6 位房间号</li>
-  <li>满 3 人按「开始游戏」</li>
-</ol>
-
-<h3>三轮递进</h3>
-<table>
-  <tr><th>轮次</th><th>名称</th><th>深度</th><th>怎么互动</th></tr>
-  <tr><td>1</td><td>破冰轮</td><td>轻松日常：兴趣、旅行、音乐</td><td>❤️ 送暖心共鸣</td></tr>
-  <tr><td>2</td><td>结对轮</td><td>情感边界：价值观、信任、遗憾</td><td>二选一配对 + 🔥火花 + 🗡️挖墙脚</td></tr>
-  <tr><td>3</td><td>默契轮</td><td>灵魂拷问：生命意义、恐惧、自我</td><td>🗳️ 投票惩罚 + 💗 投票暖心</td></tr>
-</table>
-
-<h3>计时器 + 答案方向</h3>
-<ol>
-  <li>主持人抽题 → 30 秒倒计时 → 大家面对面轮流说</li>
-  <li>计时归零 → AI 自动弹出 3-4 个「回答方向」标签</li>
-  <li>主持人看一眼现场氛围 → 点一个最接近的 → 完事</li>
-</ol>
-
-<h3>浮动房间怎么读</h3>
+<h3>自动化流程</h3>
 <ul>
-  <li>每个玩家是一个漂浮的头像，会缓慢漂移</li>
-  <li><b>热度高</b>的两个玩家会逐渐靠近</li>
-  <li>游戏结束时最高热度对聚拢到中心</li>
-  <li>有人发动挖墙脚 → 最高热度对会弹开</li>
-</ul>
-
-<h3>终局</h3>
-<ul>
-  <li>房主发起「投票惩罚」— 全员投票选出谁接受什么挑战</li>
-  <li>或「投票暖心」— 全员投票谁最值得获得暖心值</li>
-  <li>AI 自动生成默契报告，总结谁和谁最有化学反应</li>
+  <li>计时归零 → <b>自动触发 AI 分析</b>（800ms 延迟）</li>
+  <li>分析完成 → AI 匹配结果广播全端</li>
+  <li>阈值触发 → <b>自动生成惩罚候选</b> → 全员投票 → <b>自动决议</b></li>
+  <li>本轮题目达上限 → <b>自动进入结算</b>（8s 展示延迟）</li>
+  <li>结算 → AI 生成轮次小结 + 嫉妒值揭晓</li>
+  <li>进入下一轮 → <b>1.5s 后自动出首题</b></li>
+  <li>三轮完毕 → <b>AI 终审报告</b></li>
 </ul>
 
 <!-- ============================================================ -->
-<h2>2. 设计理念</h2>
+<h2>通信协议</h2>
 
-<div class="card">
-  <p><b>手机是最小存在。</b>三六局是线下工具，不是 App。玩家不需要打字、不需要看屏幕。</p>
-  <p style="margin-top:8px;"><b>AI 是气氛组，不是主角。</b>AI 出题、AI 猜方向、AI 评论——都只为活跃气氛，人不跟 AI 对话。</p>
-  <p style="margin-top:8px;"><b>数据只反映社交信号。</b>不记录答案内容，只看行为：谁暖谁、谁吃醋、选择模式。</p>
-</div>
-
-<!-- ============================================================ -->
-<h2>3. 核心机制</h2>
-
-<h3>热度 (Heat) & 好感 (Crush)</h3>
-<ul>
-  <li>❤️ 暖心 +10 热度 | 🔥 火花 +20 热度</li>
-  <li>二选一相同 +15 热度 | 🗡️ 挖墙脚 -20 热度（最高对）</li>
-  <li>好感记录谁对谁频繁互动，轮一结束自动算嫉妒值</li>
-</ul>
-
-<h3>嫉妒 & 挖墙脚</h3>
-<ul>
-  <li>你喜欢的人和别人热度更高 → 嫉妒 +1</li>
-  <li>轮二中嫉妒值 > 0 的玩家可发动挖墙脚</li>
-  <li>挖墙脚消耗嫉妒值，拆热度最高对，自身二选一权重翻倍</li>
-</ul>
-
-<h3>惩罚系统（7 类 · 随机 5 选）</h3>
 <table>
-  <tr><th>类别</th><th>示例</th></tr>
-  <tr><td>🎭 表演</td><td>用三种不同的声调唱《小星星》</td></tr>
-  <tr><td>💬 真心话</td><td>最近一次对谁撒了谎？</td></tr>
-  <tr><td>⚡ 大冒险</td><td>做 10 个俯卧撑</td></tr>
-  <tr><td>🎯 社交</td><td>给在场每个人一句夸奖</td></tr>
-  <tr><td>🍻 喝酒</td><td>猜拳三局两胜，输的喝</td></tr>
-  <tr><td>🎮 小游戏</td><td>纸牌搭房子，30s 谁高谁免罚</td></tr>
-  <tr><td>💕 暧昧</td><td>深情对视 15 秒不许笑</td></tr>
+  <tr><th>方向</th><th>消息类型</th></tr>
+  <tr><td>Host → All</td><td>GAME_STARTED, QUESTION, TIMER_TICK, TIMER_END, MATCH_RESULT, VOTE_START, VOTE_RESULT, ROUND_SETTLEMENT, ROUND_CHANGED, JEALOUSY_UPDATED, GAME_ENDED, AI_THINKING, ROOM_STATE</td></tr>
+  <tr><td>Player → Host</td><td>PLAYER_JOINED, PLAYER_ANSWER, PLAYER_REJOINED, VOTE_CAST, ROOM_STATE_REQUEST</td></tr>
 </table>
 
-<h3>投票</h3>
+<p style="color:var(--text2);font-size:13px;">基于 Supabase Realtime Broadcast（PubSub 模式）。Host 浏览器为状态权威源，每隔 3 秒 + 状态变化时广播全量 ROOM_STATE。玩家终端是瘦客户端——只接收广播、提交回答/投票。</p>
+
+<!-- ============================================================ -->
+<h2>消息循环机制 <span class="badge badge-done">已实现</span></h2>
+
+<h3>状态同步策略</h3>
 <ul>
-  <li>房主发起 → 全员各投 1 票 → 实时计票 → 自动公布</li>
+  <li><b>每 3 秒</b>：Host 广播完整 ROOM_STATE（room, players, game, heat）</li>
+  <li><b>状态变化时</b>：立即广播 ROOM_STATE（玩家加入、计时结束、匹配完成）</li>
+  <li><b>玩家重连</b>：发送 PLAYER_REJOINED → Host 重播 ROOM_STATE（5s 超时）</li>
 </ul>
 
-<h3>身份持久化</h3>
+<h3>会话持久化</h3>
 <ul>
-  <li>名字 + 头像存 localStorage，下次打开自动出现</li>
-  <li>每个身份可绑定自定义惩罚模板</li>
+  <li><b>localStorage</b>：当前会话信息 + Host 完整备份（30 分钟过期）</li>
+  <li><b>刷新恢复</b>：自动检测未完成游戏 → 显示重连横幅 + 相对时间</li>
+  <li><b>跨设备</b>：通过 Supabase 实时通道从 Host 恢复状态</li>
 </ul>
 
 <!-- ============================================================ -->
-<h2>4. AI 模块 <span class="badge badge-done">已实现</span></h2>
+<h2>AI 架构</h2>
 
-<h3>System Prompt</h3>
-<pre>你是"三六局"（Sanliuju）的AI助手。三六局是一款线下聚会破冰游戏，灵感源自心理学家
-Arthur Aron的"36个问题让陌生人相爱"实验。游戏分3轮，每轮12题，共36题，通过渐进式
-自我披露增进参与者之间的亲密感和默契。
+<h3>AI 主持人 System Prompt <span class="badge badge-done">DeepSeek</span></h3>
+<pre>你是三六局（Sanliuju）的AI主持人。你全权负责游戏进程：出题、收集回答、计算匹配度、触发奖惩、生成总结。
 
-游戏规则：
-- 轮一「破冰轮」(L1)：轻松日常话题，打破陌生感
-- 轮二「结对轮」(L2-L3)：价值观和情感话题，建立信任
-- 轮三「默契轮」(L4)：深度灵魂拷问，检验默契
+第一轮「信息采集」：出轻松诙谐的生活化问题。轮末生成初始匹配矩阵。
+第二轮「当下匹配」：聚焦当下场景，根据回答自动生成暖心/火花值。
+第三轮「人性博弈」：清空前两轮日志，深度价值观拷问，玩家通过回答悄悄提升匹配度。
+输出格式：所有输出必须是 JSON，包含 func 字段指定渲染函数。
+风格：幽默、戏精、接地气，问题让人一愣然后笑。</pre>
 
-你的角色：温暖、幽默、偶尔八卦但不刻薄。评论1-2句；出题只返回问题本身；报告2-4句。
-中文口语化。了解36问递进逻辑，出题不跨级。</pre>
-
-<h3>AI 出题 <span class="badge badge-new">temperature=0.9</span></h3>
-<pre>三六局第N轮「轮次名」。在场玩家：xxx。前几轮方向：xxx（避免重复）。
-36问按渐进式自我披露设计——破冰轻松→结对信任→默契灵魂。
-请生成一道该级别的问题，可以天马行空但要符合深度。只返回问题，不超过30字。</pre>
-
-<h3>答案方向识别 <span class="badge badge-new">NEW</span></h3>
-<pre>计时归零触发。题目"xxx"，属于第N轮。
-预测3-4个可能的回答方向标签（每个4-8字），覆盖常见方向。
-纯文本，一行一个，不加编号。</pre>
-<pre>主持人选择后触发评论：
-第N轮，题目"xxx"，回答方向"yyy"。在场玩家：xxx。
-用1句话点评氛围，结合36问递进逻辑。</pre>
-
-<h3>AI 评论员（事件触发）</h3>
+<h3>AI 调用</h3>
 <table>
-  <tr><th>事件</th><th>风格</th></tr>
-  <tr><td>玩家加入</td><td>幽默欢迎，暗示36问之旅</td></tr>
-  <tr><td>暖心/火花</td><td>温暖八卦，体现共鸣和支持</td></tr>
-  <tr><td>挖墙脚</td><td>毒舌不伤人，体现情感张力</td></tr>
-</table>
-
-<h3>AI 默契报告（终局）</h3>
-<pre>36问完成。热度最高配对：xxx。各轮方向汇总：xxx。
-参考Aron实验——渐进式自我披露培养亲密感。
-结合各轮实际方向，2-3句话总结默契成果，幽默八卦风格。</pre>
-
-<h3>AI 架构</h3>
-<pre>浏览器 → /api/ai → CF Pages Function → CF Tunnel → AI 服务 → Qwen 3.5 Plus</pre>
-<p style="font-size:12px;color:var(--text2);">自建 API，OpenAI 兼容协议。API 地址通过环境变量保护，前端不可见。</p>
-
-<!-- ============================================================ -->
-<h2>5. 视觉动效</h2>
-
-<table>
-  <tr><th>元素</th><th>效果</th></tr>
-  <tr><td>页面切换</td><td>fadeUp 入场 (0.35s)</td></tr>
-  <tr><td>房间号</td><td>模糊→清晰 reveal</td></tr>
-  <tr><td>按钮</td><td>shimmer 光泽 + hover 上浮 + active 缩放</td></tr>
-  <tr><td>计时器 ≤10s</td><td>红色脉冲警告</td></tr>
-  <tr><td>问题卡片</td><td>slideInRight 滑入</td></tr>
-  <tr><td>暖心/火花</td><td>弹跳 + 彩色光环扩散</td></tr>
-  <tr><td>玩家头像</td><td>漂移动画 (CSS drift, 周期 3-6s)</td></tr>
-  <tr><td>热度引力</td><td>CSS transition 2.5s 平滑靠近</td></tr>
-  <tr><td>结算收敛</td><td>高热度对聚拢 + 绿色光环</td></tr>
+  <tr><th>调用</th><th>触发</th><th>超时</th></tr>
+  <tr><td>generateQuestion</td><td>出题按钮 / 自动出首题</td><td>10s</td></tr>
+  <tr><td>analyzeMatches</td><td>计时结束（自动）</td><td>20s</td></tr>
+  <tr><td>generateRoundSummary</td><td>本轮结算（自动）</td><td>15s</td></tr>
+  <tr><td>generateGameReport</td><td>游戏结束</td><td>20s</td></tr>
 </table>
 
 <!-- ============================================================ -->
-<h2>6. 技术架构</h2>
+<h2>部署</h2>
 
-<h3>部署</h3>
 <table>
-  <tr><th>平台</th><th>网址</th></tr>
-  <tr><td>Cloudflare Pages</td><td><code>36.bigbigox.dpdns.org</code></td></tr>
-  <tr><td>GitHub</td><td><code>github.com/BigBigOX/sanliuju-web</code></td></tr>
+  <tr><th>组件</th><th>平台</th></tr>
+  <tr><td>前端</td><td>Cloudflare Pages（静态站点）</td></tr>
+  <tr><td>AI 代理</td><td>CF Pages Function /api/ai → DeepSeek API</td></tr>
+  <tr><td>实时通信</td><td>Supabase Realtime Broadcast</td></tr>
+  <tr><td>TTS（计划中）</td><td>百度短文本合成 API（精品音库，5 万次）</td></tr>
 </table>
 
-<h3>通信协议</h3>
-<p style="color:var(--text2);font-size:13px;">同一浏览器多标签页通过 <code>BroadcastChannel</code> 同步（传 17 种消息类型）</p>
-
-<h3>文件</h3>
+<h3>移植路径</h3>
 <table>
-  <tr><th>文件</th><th>说明</th></tr>
-  <tr><td><code>index.html</code></td><td>完整单文件应用 (HTML+CSS+JS)</td></tr>
-  <tr><td><code>functions/api/ai.js</code></td><td>CF Pages Function AI 代理</td></tr>
-  <tr><td><code>questions.js</code></td><td>题库模块 (120题·4级·共用)</td></tr>
-  <tr><td><code>penalties.js</code></td><td>惩罚模块 (4类·40项·共用)</td></tr>
+  <tr><th>阶段</th><th>平台</th><th>UI 层</th><th>状态存储</th></tr>
+  <tr><td>1 ✅</td><td>Web 模拟器</td><td>HTML DOM</td><td>localStorage</td></tr>
+  <tr><td>2 📱</td><td>微信小程序</td><td>WXML + WXSS</td><td>wx.setStorageSync</td></tr>
+  <tr><td>3 📲</td><td>APP</td><td>React Native / Flutter</td><td>AsyncStorage</td></tr>
 </table>
 
-<h3>技术标签</h3>
+<!-- ============================================================ -->
+<h2>技术标签</h2>
 <div>
   <span class="tag tag-js">Vanilla JS</span>
-  <span class="tag tag-html">Single File</span>
-  <span class="tag tag-js">BroadcastChannel</span>
+  <span class="tag tag-js">IIFE 模块</span>
   <span class="tag tag-js">localStorage</span>
   <span class="tag tag-css">CSS Animations</span>
-  <span class="tag tag-css">CSS Variables</span>
-  <span class="tag tag-api">CF Pages Functions</span>
-  <span class="tag tag-api">CF Tunnel</span>
-  <span class="tag tag-api">Qwen 3.5 Plus</span>
-  <span class="tag tag-dep">Zero Dependencies</span>
+  <span class="tag tag-api">Supabase Realtime</span>
+  <span class="tag tag-api">Cloudflare Pages</span>
+  <span class="tag tag-api">DeepSeek API</span>
+  <span class="tag tag-dep">@supabase/supabase-js</span>
 </div>
 
 <hr style="margin:40px 0;border:none;border-top:1px solid #E7E5E4;">
-<p style="color:var(--text2);font-size:12px;text-align:center;">
-  三六局 Sanliuju · 2026-05-13
-</p>
+<p style="color:var(--text2);font-size:12px;text-align:center;">三六局 Sanliuju V2 · 2026-05-15</p>
 
 </body>
 </html>

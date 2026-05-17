@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "feishu": {
+      "command": "npx",
+      "args": ["feishu-mcp"],
+      "env": {
+        "FEISHU_APP_ID": "cli_a9207e721cb85bcd",
+        "FEISHU_APP_SECRET": "IuLenYIPvskaEDV6CyP84c781iKSZbtS"
+      }
+    }
+  }
+}

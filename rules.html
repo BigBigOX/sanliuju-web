@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三六局 — 游戏规则与流程</title>
+<title>三六局 V2 — 游戏规则</title>
 <style>
   :root {
     --warm: #F97316; --warm-light: #FFF7ED; --warm-dark: #EA580C;
@@ -12,40 +12,25 @@
   }
   * { box-sizing: border-box; margin:0; padding:0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     background: var(--bg); color: var(--text); line-height: 1.8;
     max-width: 800px; margin: 0 auto; padding: 40px 20px;
   }
   h1 { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
   h1 span { color: var(--warm); }
   .sub { color: var(--text2); font-size: 14px; margin-bottom: 32px; }
-  h2 {
-    font-size: 20px; font-weight: 700; margin-top: 36px; margin-bottom: 12px;
-    padding-bottom: 8px; border-bottom: 2px solid var(--warm-light);
-  }
+  h2 { font-size: 20px; font-weight: 700; margin-top: 36px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--warm-light); }
   h3 { font-size: 16px; font-weight: 700; margin-top: 20px; color: var(--warm-dark); }
   .step {
     background: var(--card); border-radius: var(--radius); padding: 16px 20px;
     margin-bottom: 12px; box-shadow: var(--shadow); border-left: 4px solid var(--warm);
   }
-  .step .n {
-    display: inline-block; width: 28px; height: 28px; border-radius: 50%;
-    background: var(--warm); color: #fff; text-align: center; line-height: 28px;
-    font-size: 14px; font-weight: 700; margin-right: 10px;
-  }
+  .step .n { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: var(--warm); color: #fff; text-align: center; line-height: 28px; font-size: 14px; font-weight: 700; margin-right: 10px; }
   .step .title { font-weight: 700; }
   .step .detail { color: var(--text2); font-size: 14px; margin-top: 4px; }
   .flow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 16px 0; }
-  .flow-s {
-    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
-    background: var(--warm-light); color: var(--warm-dark);
-  }
+  .flow-s { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; background: var(--warm-light); color: var(--warm-dark); }
   .flow-a { color: var(--text2); font-weight: 700; }
-  .note {
-    background: #FEF3C7; border-radius: var(--radius); padding: 14px 18px;
-    margin-top: 12px; font-size: 14px;
-  }
-  .note b { color: #92400E; }
   table { width: 100%; border-collapse: collapse; margin: 12px 0; }
   th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #F5F5F4; font-size: 14px; }
   th { font-weight: 700; color: var(--text2); font-size: 12px; text-transform: uppercase; }
@@ -55,136 +40,89 @@
 </head>
 <body>
 
-<h1>🦊 三六局 <span>游戏规则</span></h1>
-<p class="sub">线下聚会破冰 · 3轮36问 · 灵感源自 Arthur Aron 实验</p>
+<h1>🦊 三六局 <span>V2</span></h1>
+<p class="sub">AI 主持人全权驱动 · 3 轮渐进式默契挑战 · 灵感源自 Arthur Aron 实验</p>
 
 <!-- ============================================================ -->
-<h2>游戏准备</h2>
+<h2>角色</h2>
 
-<div class="step">
-  <span class="n">1</span><span class="title">打开页面</span>
-  <div class="detail">所有人用同一浏览器打开 <b>36.bigbigox.dpdns.org</b>。推荐 Chrome，多标签页自动同步。</div>
-</div>
-<div class="step">
-  <span class="n">2</span><span class="title">创建身份</span>
-  <div class="detail">选择或输入自己的名字 + 选一个 emoji 头像。系统会记住，下次自动出现。</div>
-</div>
-<div class="step">
-  <span class="n">3</span><span class="title">进入房间</span>
-  <div class="detail">一人点「主持聚会」创建房间（生成 6 位房间号），其余人选「加入聚会」输入房间号。满 3 人即可开局。</div>
-</div>
+<div class="step"><span class="n">👑</span><span class="title">超级管理员</span>
+<div class="detail">控制游戏节奏（点出题、进下一轮）。可跳过题目和惩罚。保持绝对中立，不参与投票，不出现在匹配中。</div></div>
+<div class="step"><span class="n">🤖</span><span class="title">AI 主持人</span>
+<div class="detail">全权负责：出题、分析回答、计算匹配度、触发奖惩、生成总结。所有游戏决策由 AI 完成。</div></div>
+<div class="step"><span class="n">🎭</span><span class="title">玩家</span>
+<div class="detail">接收 AI 出的题目，打字提交回答（50 字以内）。查看匹配结果，参与惩罚投票。不承担任何计算。</div></div>
 
 <!-- ============================================================ -->
 <h2>三轮递进</h2>
 
 <div class="flow">
-  <span class="flow-s">轮一 破冰</span> <span class="flow-a">→</span>
-  <span class="flow-s">轮二 结对</span> <span class="flow-a">→</span>
-  <span class="flow-s">轮三 默契</span> <span class="flow-a">→</span>
-  <span class="flow-s">投票惩罚</span> <span class="flow-a">→</span>
-  <span class="flow-s">默契报告</span>
+  <span class="flow-s">轮一 信息采集</span> <span class="flow-a">→</span>
+  <span class="flow-s">轮二 当下匹配</span> <span class="flow-a">→</span>
+  <span class="flow-s">轮三 人性博弈</span> <span class="flow-a">→</span>
+  <span class="flow-s">AI 终审报告</span>
 </div>
 
-<h3>轮一 · 破冰轮</h3>
-<div class="step">
-  <div class="detail">
-    <b>深度</b>：轻松日常 — 兴趣爱好、旅行、音乐、童年<br>
-    <b>流程</b>：主持人抽题 → 30 秒倒计时 → 大家轮流回答 → 计时归零 AI 弹出答案方向 → 主持人选一个<br>
-    <b>互动</b>：每个人可点 ❤️「暖心」给产生共鸣的人（+10 热度）<br>
-    <b>结算</b>：轮一结束时系统自动计算嫉妒值 — 你喜欢的人和别人热度更高？
-  </div>
-</div>
+<h3>轮一 · 信息采集</h3>
+<div class="step"><div class="detail">
+  <b>目标</b>：采集所有人的偏好、性格、情绪分布<br>
+  <b>题数</b>：玩家数 × 2（最少 4 题）<br>
+  <b>风格</b>：轻松诙谐的生活化问题，脑洞大开<br>
+  <b>流程</b>：AI 出题 → 30s 计时 → 各人打字回答 → 计时归零自动分析 → AI 匹配结果<br>
+  <b>轮末</b>：AI 结算 + 嫉妒值揭晓（关心的人跟别人更默契？）
+</div></div>
 
-<h3>轮二 · 结对轮</h3>
-<div class="step">
-  <div class="detail">
-    <b>深度</b>：情感边界 — 价值观、信任、遗憾、成长<br>
-    <b>特殊机制</b>：抽题同时抽一道「二选一」（咖啡/茶、山/海……），选相同的人 +15 热度<br>
-    <b>互动</b>：可点 🔥「火花」表达欣赏（+20 热度）<br>
-    <b>挖墙脚</b>：嫉妒值 > 0 的玩家可发动「🗡️挖墙脚」— 拆散最高热度对（-20 热度）+ 自身二选一权重翻倍
-  </div>
-</div>
+<h3>轮二 · 当下匹配</h3>
+<div class="step"><div class="detail">
+  <b>目标</b>：基于第一轮匹配数据，聚焦当下场景深化匹配<br>
+  <b>题数</b>：5 题<br>
+  <b>风格</b>：当下心情、想做的事、对在场谁的印象最深<br>
+  <b>机制</b>：AI 结合第一轮匹配热度分组出题；匹配结果对玩家可见<br>
+  <b>奖惩</b>：默契度 ≥ 70 → 亲密惩罚（交杯酒、对视…）；默契度 ≤ 20 → 公开惩罚（真心话、大冒险…）
+</div></div>
 
-<h3>轮三 · 默契轮</h3>
-<div class="step">
-  <div class="detail">
-    <b>深度</b>：灵魂拷问 — 生命意义、恐惧、遗憾、自我认知<br>
-    <b>流程</b>：最后几道最深度的问题，检验整场的默契积累<br>
-    <b>结算</b>：三轮结束后主持人发起「投票惩罚」或「投票暖心」
-  </div>
-</div>
+<h3>轮三 · 人性博弈</h3>
+<div class="step"><div class="detail">
+  <b>目标</b>：深度价值观拷问，核心玩点<br>
+  <b>题数</b>：3 题<br>
+  <b>风格</b>：价值观、情感、灵魂拷问<br>
+  <b>特殊</b>：清空前两轮对话日志，AI 从零中立匹配<br>
+  <b>隐蔽挖墙脚</b>：玩家通过回答悄悄提升与目标的匹配度（不公开）
+</div></div>
 
 <!-- ============================================================ -->
-<h2>惩罚与投票流程</h2>
+<h2>投票与惩罚</h2>
 
-<div class="flow">
-  <span class="flow-s">主持人发起投票</span> <span class="flow-a">→</span>
-  <span class="flow-s">全员看到候选</span> <span class="flow-a">→</span>
-  <span class="flow-s">每人投 1 票</span> <span class="flow-a">→</span>
-  <span class="flow-s">公布结果</span>
-</div>
+<table>
+  <tr><th>触发条件</th><th>惩罚类型</th><th>示例</th></tr>
+  <tr><td>默契度 ≥ 70</td><td>🔺 亲密惩罚</td><td>交杯酒、十指相扣、深情对视 15s、公主抱</td></tr>
+  <tr><td>默契度 ≤ 20</td><td>🔻 公开惩罚</td><td>真心话、大冒险、表演节目、社交任务</td></tr>
+</table>
 
-<h3>投票惩罚</h3>
-<div class="step">
-  <div class="detail">
-    - 系统从 <b>7 类惩罚中随机抽 5 类</b>，每类抽 1 题<br>
-    - 加上所有在场玩家的自定义模板<br>
-    - 全员投票选出最终惩罚<br>
-    - 7 类：🎭 表演 · 💬 真心话 · ⚡ 大冒险 · 🎯 社交 · 🍻 喝酒 · 🎮 小游戏 · 💕 暧昧
-  </div>
-</div>
-
-<h3>投票暖心</h3>
-<div class="step">
-  <div class="detail">
-    - 候选人是所有在场玩家<br>
-    - 每人投 1 票选出「最值得获得暖心值的人」<br>
-    - 票数公开 → 增加趣味和竞争感
-  </div>
-</div>
+<div class="step"><div class="detail">
+  <b>流程</b>：AI 检测阈值 → 从对应惩罚池随机 5 项 → 全员投票 → 票高者执行<br>
+  超级管理员可随时跳过惩罚。
+</div></div>
 
 <!-- ============================================================ -->
 <h2>数值系统</h2>
 
 <table>
   <tr><th>数值</th><th>说明</th></tr>
-  <tr><td>暖心值 🪙</td><td>房主可手动加减，投票暖心决定归属</td></tr>
-  <tr><td>热度 (Heat)</td><td>每对玩家之间的互动分数 (0-100)。暖心+10 / 火花+20 / 二选一相同+15 / 挖墙脚-20</td></tr>
-  <tr><td>好感 (Crush)</td><td>谁频繁对谁送暖心/火花，系统默默记录</td></tr>
-  <tr><td>嫉妒 (Jealousy)</td><td>轮一结束计算。你喜欢的人跟别人热度高 → 嫉妒+1。轮二可用</td></tr>
+  <tr><td>默契度 (Heat)</td><td>每对玩家的匹配分数 (0-100)。AI 根据每轮回答的相似度、情感倾向自动计算</td></tr>
+  <tr><td>嫉妒值</td><td>轮一结束计算。你关心的人跟别人默契度更高 → 嫉妒 +1。后续轮次中影响隐蔽挖墙脚能力</td></tr>
 </table>
 
 <!-- ============================================================ -->
-<h2>浮动房间</h2>
+<h2>AI 主持人</h2>
 
-<div class="step">
-  <div class="detail">
-    - 每个玩家是一个漂浮的头像，有独立的漂移动画<br>
-    - <b>热度高的两个人会逐渐靠近</b>（CSS transition 2.5s 平滑移动）<br>
-    - 游戏结束时最高热度对聚拢到中心 + 绿色光环<br>
-    - 有人发动挖墙脚时，最高热度对会弹开<br>
-    - 新玩家加入时有弹跳闪光动画
-  </div>
-</div>
-
-<!-- ============================================================ -->
-<h2>AI 角色</h2>
-
-<div class="step">
-  <div class="detail">
-    <b>出题</b>：主持人点「🤖 AI出题」→ 根据轮次、在场玩家、前几轮方向生成个性化问题（temperature=0.9 天马行空）<br>
-    <b>方向识别</b>：计时归零 → AI 预测 3-4 个回答方向 → 主持人点一下最接近的<br>
-    <b>评论员</b>：玩家加入、暖心、火花、挖墙脚 → AI 自动生成一句八卦评论<br>
-    <b>默契报告</b>：游戏结束 → AI 结合所有方向数据 + 热度数据生成总结
-  </div>
-</div>
-
-<div class="note">
-  <b>核心原则</b>：手机只是记分板 + 遥控器。所有人面对面聊天，眼睛看人不是屏幕。
-  AI 不参与对话，只活跃气氛。不需要打字，不需要看手机。
-</div>
+<div class="step"><div class="detail">
+  <b>出题</b>：每轮按深度要求生成开放式文字题（禁止选择题/判断题），古灵精怪、天马行空<br>
+  <b>匹配分析</b>：计时结束后自动分析所有回答，更新默契度分数<br>
+  <b>轮次结算</b>：每轮结束生成小结，总结亮点和观察<br>
+  <b>终审报告</b>：游戏结束生成完整报告——最匹配对、最意外组合、一句话总结
+</div></div>
 
 <p class="back"><a href="/">← 回到游戏</a> · <a href="penalties.html">惩罚模板库 →</a> · <a href="summary.html">技术方案 →</a></p>
-
 </body>
 </html>

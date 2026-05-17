@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTS & ASR 测试</title>
+<style>
+:root{--bg:#0D1117;--card:#161B22;--border:#30363D;--text:#C9D1D9;--t2:#8B949E;--g:#3FB950;--r:#F85149;--y:#D29922;--b:#58A6FF;--warm:#F97316}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);max-width:600px;margin:0 auto;padding:24px 16px 80px;line-height:1.6}
+h1{font-size:24px;margin-bottom:16px}h1 span{color:var(--warm)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin:16px 0}
+.card h2{font-size:16px;margin-bottom:12px;color:var(--b)}
+.btn{display:block;width:100%;padding:14px;border-radius:8px;border:none;font-size:16px;font-weight:600;cursor:pointer;margin:8px 0}
+.btn-primary{background:var(--warm);color:#fff}
+.btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.btn-big{font-size:20px;padding:20px;margin:24px 0;border-radius:16px}
+.btn-rec{background:var(--card);color:var(--text);border:2px solid var(--border);font-size:48px;padding:32px;border-radius:50%;width:120px;height:120px;margin:16px auto;display:flex;align-items:center;justify-content:center;transition:all .2s;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.btn-rec.recording{background:var(--r);border-color:var(--r);color:#fff;transform:scale(1.1);animation:pulse .8s infinite}
+.btn-rec.processing{background:var(--gold-light,#FFFBEB);border-color:var(--y)}
+@keyframes pulse{0%,100%{transform:scale(1.1)}50%{transform:scale(1.05)}}
+.input{width:100%;padding:12px;border:2px solid var(--border);border-radius:8px;font-size:16px;background:var(--bg);color:var(--text);outline:none;font-family:inherit;margin:8px 0}.input:focus{border-color:var(--b)}
+.result{background:var(--bg);border-radius:8px;padding:12px;margin:8px 0;font-size:13px;min-height:40px;word-break:break-all}
+.result.success{border-left:3px solid var(--g)}.result.error{border-left:3px solid var(--r)}.result.info{border-left:3px solid var(--b)}
+audio{width:100%;margin:8px 0}
+select{width:100%;padding:8px;border-radius:6px;background:var(--bg);color:var(--text);border:1px solid var(--border)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-ok{background:rgba(63,185,80,.15);color:var(--g)}.badge-err{background:rgba(248,81,73,.15);color:var(--r)}.badge-info{background:rgba(88,166,255,.15);color:var(--b)}
+.logs{max-height:200px;overflow-y:auto;font-size:11px;color:var(--t2);font-family:'SF Mono',Consolas,monospace;background:var(--bg);border-radius:8px;padding:8px}
+.logs div{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+</style>
+</head>
+<body>
+
+<h1>🔊 TTS & ASR <span>测试面板</span></h1>
+
+<button class="btn btn-primary btn-big" id="init-btn" onclick="initAudio()">👆 点这里开始测试</button>
+
+<div class="card">
+  <h2>🎙️ TTS 语音合成</h2>
+  <input class="input" id="tts-text" placeholder="输入文字…" value="欢迎来到三六局，准备开始今天的游戏吧">
+  <select id="tts-voice">
+    <option value="longfei_v3">longfei_v3 热血磁性男</option>
+    <option value="longze_v3">longze_v3 温暖元气男</option>
+    <option value="longhua_v3">longhua_v3 元气甜美女</option>
+    <option value="longanyang">longanyang 阳光大男孩</option>
+  </select>
+  <button class="btn btn-primary" id="tts-btn" onclick="testTTS()">▶️ 合成并播放</button>
+  <div class="result" id="tts-result"></div>
+  <audio id="tts-audio" controls style="display:none"></audio>
+</div>
+
+<div class="card" id="asr-section" style="display:none">
+  <h2>🎤 ASR 语音识别</h2>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">按住录音，松开发送</p>
+  <button class="btn-rec" id="asr-btn"
+    onmousedown="asrStart()" onmouseup="asrStop()" onmouseleave="asrStop()"
+    ontouchstart="asrStart(event)" ontouchend="asrStop(event)" ontouchcancel="asrStop(event)">🎤</button>
+  <div id="asr-status" style="text-align:center;font-size:13px;color:var(--t2)">按住开始录音</div>
+  <div class="result" id="asr-result"></div>
+  <div class="logs" id="asr-logs"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ===== Log =====
+function asrLog(msg, cls) {
+  const logs = document.getElementById('asr-logs')
+  const time = new Date().toLocaleTimeString()
+  logs.innerHTML += `<div><span class="badge ${cls||'badge-info'}">${time}</span> ${msg}</div>`
+  logs.scrollTop = logs.scrollHeight
+}
+window.addEventListener('error', e => asrLog('全局错误: ' + e.message + ' @' + e.filename + ':' + e.lineno, 'badge-err'))
+window.addEventListener('unhandledrejection', e => asrLog('Promise错误: ' + (e.reason?.message||e.reason), 'badge-err'))
+
+// ===== Init =====
+let preloadedSrc = null
+async function initAudio() {
+  const btn = document.getElementById('init-btn')
+  const audio = document.getElementById('tts-audio')
+  const asrSection = document.getElementById('asr-section')
+  const result = document.getElementById('tts-result')
+
+  btn.textContent = '⏳ 合成中…'; btn.disabled = true
+
+  // Synthesize
+  const text = document.getElementById('tts-text').value.trim()
+  const voice = document.getElementById('tts-voice').value
+  const t0 = Date.now()
+  try {
+    const resp = await fetch('/api/tts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text,voice}) })
+    const data = await resp.json()
+    if (data.error) { result.className='result error'; result.textContent='❌ '+data.error; btn.style.display='none'; return }
+    preloadedSrc = data.audio_url || (data.audio ? 'data:audio/wav;base64,'+data.audio : null)
+    if (!preloadedSrc) { result.className='result error'; result.textContent='❌ 无音频数据'; btn.style.display='none'; return }
+    result.className = 'result success'; result.textContent = '✅ 合成成功 (' + (Date.now()-t0) + 'ms)'
+    // Play
+    audio.src = preloadedSrc; audio.style.display = ''
+    audio.play().catch(e => result.textContent += ' | 播放失败: ' + e.message)
+  } catch(e) { result.className='result error'; result.textContent = '❌ ' + e.message; btn.style.display='none'; return }
+
+  asrSection.style.display = ''
+  btn.style.display = 'none'
+}
+
+// ===== TTS =====
+async function testTTS() {
+  const text = document.getElementById('tts-text').value.trim()
+  const voice = document.getElementById('tts-voice').value
+  const result = document.getElementById('tts-result')
+  const audio = document.getElementById('tts-audio')
+  const btn = document.getElementById('tts-btn')
+  if (!text) return
+
+  btn.disabled = true; btn.textContent = '⏳ 合成中…'
+  result.className = 'result info'; result.textContent = '请求中…'
+  const t0 = Date.now()
+
+  try {
+    const resp = await fetch('/api/tts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text,voice}) })
+    const latency = Date.now() - t0
+    const respText = await resp.text()
+    let data
+    try { data = JSON.parse(respText) } catch(_) {
+      result.className='result error'; result.textContent='❌ 非JSON [HTTP '+resp.status+']: '+respText.slice(0,200); btn.disabled=false; btn.textContent='▶️ 合成并播放'; return
+    }
+    if (data.error) {
+      result.className='result error'; result.innerHTML='❌ '+data.error+' ('+latency+'ms)<br><small>'+JSON.stringify(data).slice(0,200)+'</small>'; btn.disabled=false; btn.textContent='▶️ 合成并播放'; return
+    }
+    const src = data.audio_url || (data.audio ? 'data:audio/wav;base64,'+data.audio : null)
+    if (!src) { result.className='result error'; result.innerHTML='❌ 无音频<br><small>'+respText.slice(0,200)+'</small>'; btn.disabled=false; btn.textContent='▶️ 合成并播放'; return }
+    result.className='result success'; result.innerHTML='✅ 合成成功 ('+latency+'ms) <span class="badge badge-ok">'+voice+'</span>'
+    audio.src = src; audio.style.display = ''; audio.play().catch(e => result.innerHTML += '<br>⚠️ 播放拦截: '+e.message)
+  } catch(e) { result.className='result error'; result.textContent='❌ '+e.message }
+  btn.disabled = false; btn.textContent = '▶️ 合成并播放'
+}
+
+// ===== WAV Converter =====
+async function convertToWav(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)()
+  const arrayBuf = await blob.arrayBuffer()
+  const audioBuf = await ctx.decodeAudioData(arrayBuf)
+  ctx.close()
+
+  // Encode PCM to WAV — downsample to 16kHz for Fun-ASR
+  const numChannels = audioBuf.numberOfChannels
+  const srcRate = audioBuf.sampleRate
+  const targetRate = 16000
+  const duration = audioBuf.duration
+  let pcmData = audioBuf.getChannelData(0)
+  asrLog(`音频参数: ${srcRate}Hz · ${numChannels}ch · ${duration.toFixed(1)}s · ${pcmData.length} samples`, 'badge-info')
+
+  // Downsample to 16000 Hz if needed
+  if (srcRate !== targetRate) {
+    const ratio = srcRate / targetRate
+    const newLen = Math.floor(pcmData.length / ratio)
+    const downsampled = new Float32Array(newLen)
+    for (let i = 0; i < newLen; i++) {
+      downsampled[i] = pcmData[Math.floor(i * ratio)]
+    }
+    pcmData = downsampled
+    asrLog(`降采样: ${srcRate}Hz → ${targetRate}Hz · ${pcmData.length} samples`, 'badge-info')
+  }
+
+  const byteRate = targetRate * 2
+  const dataSize = pcmData.length * 2
+  const headerSize = 44
+  const buffer = new ArrayBuffer(headerSize + dataSize)
+  const view = new DataView(buffer)
+
+  function writeStr(offset, str) { for (let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)) }
+  writeStr(0, 'RIFF'); view.setUint32(4, 36+dataSize, true); writeStr(8, 'WAVE')
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true); view.setUint32(24, targetRate, true)
+  view.setUint32(28, byteRate, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true)
+  writeStr(36, 'data'); view.setUint32(40, dataSize, true)
+
+  let offset = 44
+  for (let i=0;i<pcmData.length;i++) {
+    const s = Math.max(-1, Math.min(1, pcmData[i]))
+    view.setInt16(offset, s<0?s*0x8000:s*0x7FFF, true)
+    offset += 2
+  }
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+// ===== ASR =====
+let mediaRecorder = null, audioChunks = []
+
+async function asrStart(e) {
+  if (e) e.preventDefault()
+  if (mediaRecorder) return
+  const btn = document.getElementById('asr-btn')
+  const status = document.getElementById('asr-status')
+  const result = document.getElementById('asr-result')
+  result.className = 'result'; result.textContent = ''
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } })
+    asrLog('麦克风已授权', 'badge-ok')
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+    mediaRecorder = new MediaRecorder(stream, { mimeType })
+    audioChunks = []
+    mediaRecorder.addEventListener('dataavailable', e => { if (e.data.size>0) audioChunks.push(e.data) })
+    mediaRecorder.start()
+    btn.classList.add('recording')
+    status.textContent = '录音中…松开发送'
+    asrLog('录音开始 · '+mimeType, 'badge-info')
+  } catch(e) {
+    asrLog('麦克风权限被拒: '+e.message, 'badge-err')
+    status.textContent = '需要麦克风权限'
+  }
+}
+
+async function asrStop(e) {
+  if (e) e.preventDefault()
+  if (!mediaRecorder) return
+
+  const btn = document.getElementById('asr-btn'), status = document.getElementById('asr-status'), result = document.getElementById('asr-result')
+  btn.classList.remove('recording'); btn.classList.add('processing')
+  status.textContent = '处理中…'
+
+  mediaRecorder.addEventListener('stop', async () => {
+    let blob = new Blob(audioChunks, { type: mediaRecorder.mimeType })
+    asrLog('录音结束 · '+(blob.size/1024).toFixed(1)+'KB · '+blob.type, 'badge-info')
+    mediaRecorder.stream.getTracks().forEach(t=>t.stop()); mediaRecorder = null
+
+    const t0 = Date.now()
+    try {
+      // Convert to WAV
+      asrLog('webm→wav 转换…', 'badge-info')
+      blob = await convertToWav(blob)
+      asrLog('WAV转换完成 · '+(blob.size/1024).toFixed(1)+'KB', 'badge-ok')
+    } catch(e) {
+      asrLog('转换失败，用原始格式: '+e.message, 'badge-err')
+    }
+
+    try {
+      const sb = window.supabase.createClient('https://qrqhooyjbynicwycttfi.supabase.co', 'sb_publishable_LhnO7BuftYRFwignp2fGtA_m_c0Gkxl')
+      if (!sb) throw new Error('Supabase not loaded')
+
+      const fileName = 'test/'+Date.now()+'.wav'
+      asrLog('上传 '+fileName, 'badge-info')
+
+      const { error: upErr } = await sb.storage.from('voice-answers').upload(fileName, blob, { contentType: 'audio/wav', upsert: true })
+      if (upErr) throw new Error('上传失败: '+upErr.message)
+      asrLog('上传完成', 'badge-ok')
+
+      const { data: urlData } = sb.storage.from('voice-answers').getPublicUrl(fileName)
+      const fileUrl = urlData?.publicUrl
+      if (!fileUrl) throw new Error('无公开URL')
+      // Download link for debugging
+      const downloadUrl = URL.createObjectURL(blob)
+      asrLog(`<a href="${downloadUrl}" download="test.wav" style="color:var(--b)">⬇ 下载WAV验证音频</a>`, 'badge-info')
+
+      asrLog('ASR识别中…', 'badge-info')
+
+      const resp = await fetch('/api/asr', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({file_url:fileUrl, language:'zh'}) })
+      const latency = Date.now()-t0
+      const respText = await resp.text()
+      asrLog('ASR响应 [HTTP '+resp.status+']: '+respText.slice(0,300), resp.ok?'badge-info':'badge-err')
+
+      let data
+      try { data = JSON.parse(respText) } catch(_) {
+        result.className='result error'; result.textContent='❌ 响应非JSON: '+respText.slice(0,200); return
+      }
+      if (data.error) {
+        result.className='result error'; result.textContent='❌ '+data.error+' ('+latency+'ms)'
+        asrLog('ASR失败: '+JSON.stringify(data), 'badge-err')
+      } else if (!data.text || data.text === '(未识别到语音)') {
+        result.className='result error'; result.textContent='⚠️ 未识别到语音 ('+latency+'ms)'
+        asrLog('ASR空文本, 完整响应: '+JSON.stringify(data), 'badge-err')
+      } else {
+        result.className='result success'; result.textContent='✅ '+data.text+' ('+latency+'ms)'
+        asrLog('识别成功: '+data.text, 'badge-ok')
+      }
+    } catch(e) {
+      result.className='result error'; result.textContent='❌ '+e.message
+      asrLog('异常: '+e.message+' | '+((e.stack||'').split('\n').slice(0,3).join(' → ')), 'badge-err')
+    }
+    btn.classList.remove('processing'); status.textContent = '按住开始录音'
+  })
+
+  mediaRecorder.stop()
+}
+</script>
+</body>
+</html>

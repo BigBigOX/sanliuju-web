@@ -105,7 +105,7 @@ h1 span{color:var(--t2);font-size:12px;font-weight:400}
     <div class="row"><span class="k">热度分布</span><span class="v" id="sc-dist">-</span></div>
     <div class="row"><span class="k">嫉妒计算</span><span class="v" id="sc-jeal">-</span></div>
     <div class="row"><span class="k">投票公正</span><span class="v" id="sc-vote">-</span></div>
-    <div class="row"><span class="k">暖心值分布</span><span class="v" id="sc-coins">-</span></div>
+    <div class="row"><span class="k">默契度分布</span><span class="v" id="sc-heat">-</span></div>
   </div>
 
   <!-- 4. 同步健康 -->
@@ -189,9 +189,6 @@ function audit(msg){
       if(voted<total)alert('warn','投票未全员参与: '+voted+'/'+total)
     }
   }
-  if(type==='HEART'||type==='SPARK'){
-    if(session.state.room?.status!=='playing')alert('warn',type+' 在非游戏状态发送')
-  }
   if(type==='ROOM_STATE'&&data){
     const prevStatus=session.state.room?.status
     const newStatus=data.room?.status
@@ -203,11 +200,8 @@ function audit(msg){
     if(vals.some(v=>v>100))alert('err','热度值超限 >100')
     if(vals.some(v=>v<0))alert('err','热度值为负')
   }
-  if(type==='CHOICE_PICK'){
-    if(session.state.room?.round!==2)alert('warn','二选一在非配对轮被触发')
-  }
-  if(type==='STEAL_ATTEMPT'){
-    if(session.state.room?.round!==2)alert('warn','挖墙脚在非配对轮被触发')
+  if(type==='STEAL_SUCCESS'){
+    if(session.state.room?.round!==3)alert('warn','挖墙脚在非第3轮被触发')
   }
 }
 
@@ -300,10 +294,10 @@ function handleMessage(msg){
 
   // Timeline
   tlSeq++
-  const icons={ROOM_STATE:'📡',PLAYER_JOINED:'🚪',GAME_STARTED:'▶️',QUESTION:'🎲',HEART:'❤️',SPARK:'🔥',CHOICE_PICK:'🔄',HEAT_UPDATED:'🌡️',JEALOUSY_UPDATED:'😈',STEAL_ATTEMPT:'🗡️',VOTE_START:'📊',VOTE_CAST:'✏️',VOTE_RESULT:'🏆',ROUND_CHANGED:'⏭️',GAME_ENDED:'🏁',AI_SAY:'🤖',COINS_UPDATED:'🪙',TIMER_TICK:'⏰'}
+  const icons={ROOM_STATE:'📡',PLAYER_JOINED:'🚪',GAME_STARTED:'▶️',QUESTION:'🎲',MATCH_RESULT:'🌡️',JEALOUSY_UPDATED:'😈',STEAL_SUCCESS:'🗡️',VOTE_START:'📊',VOTE_CAST:'✏️',VOTE_RESULT:'🏆',ROUND_CHANGED:'⏭️',ROUND_SETTLEMENT:'📋',GAME_ENDED:'🏁',TIMER_TICK:'⏰',PENALTY_RESULT:'🎯',AI_THINKING:'🤖'}
   const icon=icons[type]||'📨'
   const fromName=from||'?'
-  const summary=type==='ROOM_STATE'?(data?.room?.status||'')+' 玩家'+(data?.players?.filter(p=>p.joined)?.length||0):type==='QUESTION'?'L'+data?.level+' '+(data?.question||'').slice(0,25):type==='HEART'||type==='SPARK'?fromName+' → +'+(type==='HEART'?'10':'20'):type==='VOTE_CAST'?'玩家'+data?.playerId+' 投票':type==='VOTE_RESULT'?'胜出: '+data?.winner?.candidate?.label:type==='GAME_STARTED'?'轮'+data?.round:type==='ROUND_CHANGED'?'→ 轮'+data?.round:''
+  const summary=type==='ROOM_STATE'?(data?.room?.status||'')+' 玩家'+(data?.players?.filter(p=>p.joined)?.length||0):type==='QUESTION'?'L'+data?.level+' '+(data?.question||'').slice(0,25):type==='VOTE_CAST'?'玩家'+data?.playerId+' 投票':type==='VOTE_RESULT'?'胜出: '+data?.winner?.candidate?.label:type==='STEAL_SUCCESS'?'挖墙脚: '+data?.winner_id+' → '+data?.target_id:type==='GAME_STARTED'?'轮'+data?.round:type==='ROUND_CHANGED'?'→ 轮'+data?.round:''
   timeline(icon,'<b>'+type+'</b> '+summary)
 }
 

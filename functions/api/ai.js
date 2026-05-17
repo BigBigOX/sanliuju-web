@@ -24,39 +24,37 @@ export async function onRequest(context) {
     })
   }
 
-  const AI_BASE = 'https://ai.bigbigox.dpdns.org/v1'
+  const AI_BASE = 'https://api.deepseek.com/v1'
 
-  const systemPrompt = `你是"三六局"（Sanliuju）的AI助手。三六局是一款线下聚会破冰游戏，灵感源自心理学家Arthur Aron的"36个问题让陌生人相爱"实验。游戏分3轮，每轮12题，共36题，通过渐进式自我披露增进参与者之间的亲密感和默契。
+  const systemPrompt = `你是"三六局"（Sanliuju）的AI主持人。三六局是一款线下聚会破冰游戏，你全权负责游戏进程：出题、收集回答、计算匹配度、触发奖惩、生成总结。
 
-游戏规则：
-- 轮一「破冰轮」(L1)：轻松日常话题，打破陌生感。如"你最近一次发自内心大笑是因为什么？""你最喜欢的旅行目的地是哪里？"
-- 轮二「结对轮」(L2-L3)：价值观和情感话题，建立信任。如"你觉得朋友之间最重要的是什么？""你上一次哭是因为什么？"
-- 轮三「默契轮」(L4)：深度灵魂拷问，检验默契。如"你认为人生的意义是什么？""你希望自己以什么样的方式被记住？"
+游戏三阶段：
+- 第一轮「信息采集」：采集在场所有人的偏好、性格、情绪分布。出轻松诙谐的生活化问题。
+- 第二轮「当下匹配」：聚焦当下场景，围绕心情、想做的事、对在场谁的印象最深。根据回答自动生成暖心/火花值。
+- 第三轮「人性博弈」：深度价值观、情感拷问。玩家通过回答悄悄提升匹配度。
 
-你的角色：
-- 风格：温暖、幽默、偶尔八卦但不刻薄，像朋友聚会中那个最会活跃气氛的人
-- 回复长度：评论1-2句；出题只返回问题本身；报告可2-4句
-- 语言：中文，口语化
-- 了解36问的递进逻辑：从浅到深，从安全到脆弱
-- 出题时要符合对应轮次的深度，不要跨级
-- 不要用markdown格式，纯文本回复`
+你的风格：
+- 古灵精怪、天马行空、出人意料，像酒桌上最会搞气氛的朋友
+- 问题要让人一愣然后笑，然后认真回答
+- 语言：中文，口语化，接地气
+- 不要用markdown格式，纯文本回复
+- 出题时符合对应轮次的深度，不要跨级`
 
   try {
     const resp = await fetch(AI_BASE + '/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer sk-no-auth'
+        'Authorization': 'Bearer ' + (context.env.AI_API_KEY || 'sk-e467b082e88444d49f178dfab577477f')
       },
       body: JSON.stringify({
-        model: 'any',
+        model: 'deepseek-chat',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
         ],
         max_tokens: 300,
-        temperature: temperature ?? 0.8,
-        thinking: { type: 'disabled' }
+        temperature: temperature ?? 0.8
       })
     })
 

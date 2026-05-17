@@ -1,7 +1,8 @@
 /**
  * 趣味奖惩词库
- * 支持默认词库 + 自定义模板持久化
+ * 支持默认词库 + 自定义模板持久化 (localStorage)
  */
+(function() {
 const DEFAULT = {
   perform: {
     label: '表演', icon: '🎭', desc: '来段才艺，让大家开心一下',
@@ -68,11 +69,9 @@ const DEFAULT = {
 const STORAGE_KEY = 'penalty_templates'
 const LAST_USED_KEY = 'penalty_last_used'
 
-/** 获取当前生效的词库（自定义覆盖默认） */
 function getActivePool() {
   const template = getActiveTemplate()
   if (template && template.categories) {
-    // 合并：自定义覆盖同 key 的默认类别
     const merged = { ...DEFAULT }
     for (const [key, cat] of Object.entries(template.categories)) {
       if (cat.items && cat.items.length > 0) {
@@ -84,18 +83,14 @@ function getActivePool() {
   return DEFAULT
 }
 
-/** 保存模板列表 */
 function saveTemplates(templates) {
-  wx.setStorageSync(STORAGE_KEY, templates)
-  syncToCloud(templates)
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(templates)) } catch (_) {}
 }
 
-/** 加载模板列表 */
 function loadTemplates() {
-  return wx.getStorageSync(STORAGE_KEY) || []
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [] } catch (_) { return [] }
 }
 
-/** 保存单个模板 */
 function saveTemplate(template) {
   const templates = loadTemplates()
   const idx = templates.findIndex(t => t.id === template.id)
@@ -111,17 +106,14 @@ function saveTemplate(template) {
   return template
 }
 
-/** 删除模板 */
 function deleteTemplate(id) {
   const templates = loadTemplates().filter(t => t.id !== id)
   saveTemplates(templates)
-  // 如果删除的是当前激活的，清除激活
   if (getLastUsedId() === id) {
-    wx.setStorageSync(LAST_USED_KEY, '')
+    try { localStorage.setItem(LAST_USED_KEY, '') } catch (_) {}
   }
 }
 
-/** 获取当前激活的模板 */
 function getActiveTemplate() {
   const templates = loadTemplates()
   const lastId = getLastUsedId()
@@ -129,19 +121,17 @@ function getActiveTemplate() {
     const tpl = templates.find(t => t.id === lastId)
     if (tpl) return tpl
   }
-  return null // null = 使用默认词库
+  return null
 }
 
-/** 设置当前激活的模板 */
 function setActiveTemplate(id) {
-  wx.setStorageSync(LAST_USED_KEY, id || '')
+  try { localStorage.setItem(LAST_USED_KEY, id || '') } catch (_) {}
 }
 
 function getLastUsedId() {
-  return wx.getStorageSync(LAST_USED_KEY) || ''
+  try { return localStorage.getItem(LAST_USED_KEY) || '' } catch (_) { return '' }
 }
 
-/** 从模板中随机抽一个惩罚 */
 function drawPenalty(category, templateId) {
   const pool = getActivePool()
   const cat = pool[category]
@@ -150,7 +140,6 @@ function drawPenalty(category, templateId) {
   return { category, label: cat.label, icon: cat.icon, text: item }
 }
 
-/** 从每个类别各抽一题，返回 4 个候选（用于投票） */
 function drawCandidates() {
   const pool = getActivePool()
   return Object.entries(pool).map(([key, val]) => {
@@ -159,7 +148,6 @@ function drawCandidates() {
   })
 }
 
-/** 获取所有类别 */
 function getCategories() {
   const pool = getActivePool()
   return Object.entries(pool).map(([key, val]) => ({
@@ -167,7 +155,6 @@ function getCategories() {
   }))
 }
 
-/** 创建默认模板副本（基于内置词库） */
 function createDefaultTemplate(name) {
   return {
     id: '',
@@ -178,50 +165,9 @@ function createDefaultTemplate(name) {
   }
 }
 
-/** 云同步 */
-async function syncToCloud(templates) {
-  try {
-    const app = getApp()
-    if (!app) return
-    await wx.cloud.callFunction({
-      name: 'room',
-      data: { action: 'saveTemplates', templates }
-    })
-  } catch (e) { /* 静默失败，本地始终有效 */ }
-}
-
-async function loadFromCloud() {
-  try {
-    const res = await wx.cloud.callFunction({
-      name: 'room',
-      data: { action: 'loadTemplates' }
-    })
-    if (res.result && res.result.code === 0 && res.result.data) {
-      const cloudData = res.result.data
-      // 合并：云端的覆盖本地的（如果云端更新）
-      const local = loadTemplates()
-      const merged = mergeTemplates(local, cloudData)
-      wx.setStorageSync(STORAGE_KEY, merged)
-      return merged
-    }
-  } catch (e) { /* offline */ }
-  return loadTemplates()
-}
-
-function mergeTemplates(local, cloud) {
-  const map = new Map()
-  for (const t of local) map.set(t.id, t)
-  for (const t of cloud) {
-    const existing = map.get(t.id)
-    if (!existing || (t.updatedAt > existing.updatedAt)) {
-      map.set(t.id, t)
-    }
-  }
-  return [...map.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-}
-
-module.exports = {
+window.PENALTIES_ENGINE = {
   DEFAULT, getActivePool, getActiveTemplate, setActiveTemplate,
   loadTemplates, saveTemplate, deleteTemplate, createDefaultTemplate,
-  drawPenalty, drawCandidates, getCategories, loadFromCloud
+  drawPenalty, drawCandidates, getCategories
 }
+})()

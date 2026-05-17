@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三六局 V3 — 完整技术方案</title>
+<style>
+:root{--bg:#0D1117;--card:#161B22;--border:#30363D;--text:#C9D1D9;--t2:#8B949E;--t3:#6E7681;--g:#3FB950;--r:#F85149;--y:#D29922;--b:#58A6FF;--p:#BC8CFF;--warm:#F97316}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.8;max-width:1000px;margin:0 auto;padding:40px 24px 120px}
+h1{font-size:32px;margin-bottom:4px}
+h1 span{color:var(--warm)}
+.meta{color:var(--t2);font-size:13px;margin-bottom:40px}
+h2{font-size:22px;margin-top:48px;padding-bottom:8px;border-bottom:2px solid var(--border);color:var(--b)}
+h3{font-size:17px;margin-top:32px;color:var(--y)}
+h4{font-size:14px;margin-top:20px;color:var(--t2);text-transform:uppercase;letter-spacing:1px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin:16px 0}
+.card.warn{border-left:3px solid var(--y)}
+.card.info{border-left:3px solid var(--b)}
+.card.good{border-left:3px solid var(--g)}
+.card.danger{border-left:3px solid var(--r)}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--t2);font-weight:600;font-size:11px;text-transform:uppercase}
+td code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:3px;font-size:12px}
+.tag{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px}
+.tag-p0{background:rgba(248,81,73,.15);color:var(--r)}
+.tag-p1{background:rgba(249,115,22,.15);color:var(--warm)}
+.tag-p2{background:rgba(210,153,34,.15);color:var(--y)}
+.tag-p3{background:rgba(88,166,255,.15);color:var(--b)}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:16px;overflow-x:auto;font-size:12px;line-height:1.6}
+code{font-family:'SF Mono','Consolas',monospace}
+ol,ul{padding-left:24px}
+li{margin:6px 0}
+.toc{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px 28px;margin:32px 0}
+.toc a{color:var(--b);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.toc ol{columns:2}
+.arch{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin:16px 0;white-space:pre;font-family:'SF Mono','Consolas',monospace;font-size:11px;line-height:1.4;overflow-x:auto}
+@media(max-width:700px){.toc ol{columns:1}}
+</style>
+</head>
+<body>
+
+<h1>三六局 <span>V3</span></h1>
+<p class="meta">完整技术方案 · 2026-05-16 · 目标：可过审的微信小程序版本</p>
+
+<div class="toc">
+  <h4 style="margin-bottom:12px">目录</h4>
+  <ol>
+    <li><a href="#s0">V2 现状评估</a></li>
+    <li><a href="#s1">V3 功能全景</a></li>
+    <li><a href="#s2">技术架构</a></li>
+    <li><a href="#s3">模块接口规范</a></li>
+    <li><a href="#s4">数据流设计</a></li>
+    <li><a href="#s5">状态树设计</a></li>
+    <li><a href="#s6">数据库设计</a></li>
+    <li><a href="#s7">消息协议</a></li>
+    <li><a href="#s8">AI 服务架构</a></li>
+    <li><a href="#s9">安全与内容审核</a></li>
+    <li><a href="#s10">小程序合规方案</a></li>
+    <li><a href="#s11">部署架构</a></li>
+    <li><a href="#s12">测试策略</a></li>
+    <li><a href="#s13">实施路线</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s0">0. V2 现状评估</h2>
+
+<div class="card good">
+  <strong>已就绪（直接复用）</strong>
+  <ul>
+    <li>模块化架构 — data/ state/ engine/ ai/ channel/ ui/ app/ 七层分离，依赖单向</li>
+    <li>三轮游戏循环 — 信息采集 → 当下匹配 → 人性博弈，flow 清晰</li>
+    <li>AI 出题/分析 — DeepSeek API + CF Function 代理，JSON schema 校验</li>
+    <li>Supabase Realtime — 多端广播同步，消息协议 {type, from, data}</li>
+    <li>TTS 播报 — Web Audio API + 百度短文本合成 + 世代计数器打断模式</li>
+    <li>预出题审核 — AI 生成 → 主持人预览 → 发布/跳过</li>
+    <li>惩罚触发投票 — 阈值检测 → 候选生成 → 玩家投票 → 结果执行</li>
+    <li>重连恢复 — localStorage/Supabase 双重快照</li>
+    <li>CF Pages 部署 — wrangler 一键部署，自定义域名</li>
+  </ul>
+</div>
+
+<div class="card warn">
+  <strong>V2 遗留问题（V3 必须修）</strong>
+  <table>
+    <tr><th>问题</th><th>根因</th><th>V3 修复</th></tr>
+    <tr><td>重连后答题框禁用</td><td>ROOM_STATE 未携带 roundAnswers，_answeredThisRound 判断错误</td><td>getSnapshot 含 roundAnswers，handler 逻辑修正</td></tr>
+    <tr><td>已回答窗口僵死</td><td>render 每次重建 innerHTML，玩家回答未持久化到快照</td><td>roundAnswers 入快照，render 从快照读</td></tr>
+    <tr><td>TTS 偶发无声</td><td>AudioContext 未在用户手势内创建；CF Function 无重试</td><td>unlock 前置 + 3次重试</td></tr>
+    <tr><td>惩罚对象不明确</td><td>投票面板未显示 pair 信息</td><td>已修（pairNames），需再加执行动画</td></tr>
+    <tr><td>匹配结果一闪而过</td><td>下一题生成时 matchPanel 被隐藏</td><td>结果常驻直到手动关闭</td></tr>
+    <tr><td>挖墙脚空壳</td><td>stealthBoost 已定义但未完整集成</td><td>第三轮全链路：检测→执行→展示</td></tr>
+    <tr><td>无游戏大厅</td><td>直接输房间号，无房间管理 UI</td><td>Phase 2 重做房间系统</td></tr>
+    <tr><td>CDN 缓存旧版本</td><td>自定义域名无 Cache-Control 头</td><td>_headers 已加，需验证生效</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s1">1. V3 功能全景</h2>
+
+<h3>1.1 核心游戏循环（保持不变，打磨细节）</h3>
+
+<div class="card info">
+  <strong>三轮游戏</strong>：信息采集（N题）→ 当下匹配（5题）→ 人性博弈（3题）。每道题：出题→计时→作答→分析→结果展示。轮末：结算→惩罚→下一轮。
+</div>
+
+<h3>1.2 V3 新增/重构功能清单</h3>
+
+<table>
+  <tr><th>模块</th><th>功能</th><th>优先级</th><th>说明</th></tr>
+  <tr><td>房间</td><td>游戏大厅</td><td><span class="tag tag-p0">P0</span></td><td>创建房间→选配置→生成房码→等待玩家列表→开始。替代直接输房号</td></tr>
+  <tr><td>房间</td><td>房间配置</td><td><span class="tag tag-p1">P1</span></td><td>主持人可选：轮数(2-4轮)、每轮题数、主题风格(轻松/深度/混合)</td></tr>
+  <tr><td>状态</td><td>状态恢复 2.0</td><td><span class="tag tag-p0">P0</span></td><td>完整快照（含 roundAnswers + vote + penalty），ROOM_STATE 全量同步</td></tr>
+  <tr><td>匹配</td><td>匹配结果常驻</td><td><span class="tag tag-p0">P0</span></td><td>主持人端匹配面板一直可见，TOP3 高亮，支持手动调整</td></tr>
+  <tr><td>匹配</td><td>实时热力图</td><td><span class="tag tag-p1">P1</span></td><td>主持人仪表盘：玩家节点+连线+热力值，每轮更新</td></tr>
+  <tr><td>惩罚</td><td>惩罚流闭环</td><td><span class="tag tag-p0">P0</span></td><td>触发→显示对象→投票→揭晓→执行确认→动画→记录</td></tr>
+  <tr><td>惩罚</td><td>双套惩罚池</td><td><span class="tag tag-p0">P0</span></td><td>Web版保留现有池，小程序版全年龄向。通过配置切换</td></tr>
+  <tr><td>挖墙脚</td><td>完整挖墙脚</td><td><span class="tag tag-p0">P0</span></td><td>AI 检测→stealthBoost→广播→双方可见→成功者自选惩罚</td></tr>
+  <tr><td>终局</td><td>终局仪式</td><td><span class="tag tag-p1">P1</span></td><td>TOP3 揭晓动画 + 最佳默契 + 最意外组合 + AI 总结 + 分享图</td></tr>
+  <tr><td>音效</td><td>短音效系统</td><td><span class="tag tag-p1">P1</span></td><td>出题叮咚、倒计时滴答(最后5秒)、匹配揭晓、惩罚铃。非 TTS</td></tr>
+  <tr><td>TTS</td><td>TTS 稳定化</td><td><span class="tag tag-p0">P0</span></td><td>unlock 前置、重试3次、降级静默、播放状态 toast</td></tr>
+  <tr><td>暖场</td><td>话术系统 2.0</td><td><span class="tag tag-p1">P1</span></td><td>按时机分类（开局/答题/结果/惩罚/过渡），每类独立模板</td></tr>
+  <tr><td>题目</td><td>题目润色</td><td><span class="tag tag-p1">P1</span></td><td>AI 出题后再过一遍润色 prompt：太正经→重写，太平淡→加料</td></tr>
+  <tr><td>分享</td><td>分享卡片</td><td><span class="tag tag-p1">P1</span></td><td>Canvas 生成图片：TOP3匹配+金句+二维码，可转发微信群</td></tr>
+  <tr><td>合规</td><td>内容安全</td><td><span class="tag tag-p0">P0</span></td><td>security.msgSecCheck + 腾讯云IMS + 审核日志</td></tr>
+  <tr><td>合规</td><td>AI 标识</td><td><span class="tag tag-p0">P0</span></td><td>所有 AI 输出标注"内容由AI生成"</td></tr>
+  <tr><td>部署</td><td>缓存策略</td><td><span class="tag tag-p1">P1</span></td><td>_headers 验证生效，wrangler.toml 固化配置</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s2">2. 技术架构</h2>
+
+<h3>2.1 总体架构图</h3>
+
+<div class="arch">
+┌─────────────────────────────────────────────────────────────────┐
+│                        终端层 (Presentation)                      │
+│  ┌──────────────────────┐  ┌──────────────────────────────┐     │
+│  │  Web 模拟器           │  │  微信小程序                    │     │
+│  │  HTML + CSS + DOM    │  │  WXML + WXSS + Page()       │     │
+│  │  ui/renderer.js      │  │  ui/miniapp-renderer.js      │     │
+│  └──────────┬───────────┘  └──────────────┬───────────────┘     │
+│             │                             │                      │
+│             └─────────────┬───────────────┘                      │
+│                           │                                      │
+├───────────────────────────┼──────────────────────────────────────┤
+│                   编排层 (Orchestration)                          │
+│  ┌────────────────────────────────────────────────────────┐     │
+│  │  app/actions.js — 用户动作 → 调用引擎 → 写状态 → 触发渲染 │     │
+│  └────────────────────────┬───────────────────────────────┘     │
+│                           │                                      │
+├───────────────────────────┼──────────────────────────────────────┤
+│                    业务逻辑层 (Business Logic)                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
+│  │ engine/  │ │ engine/  │ │ engine/  │ │ engine/          │   │
+│  │ round-   │ │ match-   │ │ penalty- │ │ room-manager.js  │   │
+│  │ manager  │ │ calc     │ │ engine   │ │ (新增)           │   │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬─────────┘   │
+│       └────────────┼────────────┼────────────────┘              │
+│                    │            │                                │
+├────────────────────┼────────────┼────────────────────────────────┤
+│                 状态层 (State)                                    │
+│  ┌─────────────────┴────────────┴──────────────────────────┐    │
+│  │  state/game-state.js — S 对象，getSnapshot/restoreSnapshot│    │
+│  │  + saveRemote / loadRemote (Supabase)                   │    │
+│  └────────────────────────┬────────────────────────────────┘    │
+│                           │                                      │
+├───────────────────────────┼──────────────────────────────────────┤
+│                    服务层 (Services)                              │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
+│  │ ai/      │ │ channel/ │ │ ai/      │ │ ai/              │   │
+│  │ ai-client│ │ supabase │ │ prompt-  │ │ tts-client.js    │   │
+│  │ .js      │ │ -channel │ │ templates│ │                  │   │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬─────────┘   │
+│       │            │            │                 │              │
+├───────┼────────────┼────────────┼─────────────────┼──────────────┤
+│    数据层 (Data)                                                  │
+│  ┌────┴────────────┴────────────┴─────────────────┴──────────┐  │
+│  │  data/constants.js  data/penalties.js  data/questions.js │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       外部服务 (External)                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ DeepSeek API │  │ 腾讯混元 API  │  │ 百度 TTS API         │  │
+│  │ (Web阶段)    │  │ (小程序阶段)  │  │ (Web阶段 TTS)        │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
+│         │                 │                      │               │
+│  ┌──────┴─────────────────┴──────────────────────┴───────────┐  │
+│  │  CF Pages Functions — /api/ai  /api/tts  /api/audit       │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                           │                                      │
+│  ┌────────────────────────┴──────────────────────────────────┐  │
+│  │  Supabase — Realtime Broadcast + PostgreSQL + Storage     │  │
+│  │  Tables: game_snapshots, audit_logs, players, rooms       │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>2.2 平台抽象层设计</h3>
+
+<div class="card info">
+  <strong>核心原则</strong>：所有业务逻辑模块（data/ state/ engine/）与平台无关，通过依赖注入使用平台特定实现。每个平台相关模块暴露统一接口。
+</div>
+
+<table>
+  <tr><th>抽象接口</th><th>Web 实现</th><th>小程序实现</th><th>接口方法</th></tr>
+  <tr><td><code>IStorage</code></td><td>localStorage API</td><td>wx.setStorageSync / wx.getStorageSync</td><td>get(key), set(key,val), remove(key)</td></tr>
+  <tr><td><code>INetwork</code></td><td>fetch()</td><td>wx.request()</td><td>get(url), post(url,body)</td></tr>
+  <tr><td><code>IChannel</code></td><td>supabase-js (UMD)</td><td>supabase-js (小程序版)</td><td>joinRoom, leaveRoom, broadcast, onMessage</td></tr>
+  <tr><td><code>IRenderer</code></td><td>DOM (innerHTML, classList)</td><td>WXML (setData 数据绑定)</td><td>render(), 各页面渲染函数</td></tr>
+  <tr><td><code>ITTS</code></td><td>Web Audio API</td><td>微信 RealtimeTTS 插件</td><td>speak(text), stop(), unlock()</td></tr>
+  <tr><td><code>IAudio</code></td><td>HTMLAudioElement</td><td>wx.createInnerAudioContext()</td><td>play(soundId), stop()</td></tr>
+  <tr><td><code>IContentSafety</code></td><td>fetch → 腾讯云 IMS</td><td>wx.security.msgSecCheck + IMS</td><td>checkText(text) → {pass, reason}</td></tr>
+</table>
+
+<h3>2.3 跨平台文件映射</h3>
+
+<table>
+  <tr><th>功能</th><th>Web</th><th>小程序</th><th>复用率</th></tr>
+  <tr><td>游戏状态管理</td><td>state/game-state.js</td><td>同文件，storage 适配器替换</td><td>95%</td></tr>
+  <tr><td>轮次管理</td><td>engine/round-manager.js</td><td>同文件</td><td>100%</td></tr>
+  <tr><td>匹配计算</td><td>engine/match-calc.js</td><td>同文件</td><td>100%</td></tr>
+  <tr><td>惩罚引擎</td><td>engine/penalty-engine.js</td><td>同文件</td><td>100%</td></tr>
+  <tr><td>房间管理</td><td>engine/room-manager.js</td><td>同文件</td><td>100%</td></tr>
+  <tr><td>AI 客户端</td><td>ai/ai-client.js</td><td>同文件，fetch→wx.request</td><td>90%</td></tr>
+  <tr><td>Prompt 模板</td><td>ai/prompt-templates.js</td><td>同文件</td><td>100%</td></tr>
+  <tr><td>TTS</td><td>ai/tts-client.js</td><td>ai/tts-client.mp.js</td><td>30%</td></tr>
+  <tr><td>消息通道</td><td>channel/supabase-channel.js</td><td>channel/supabase-channel.mp.js</td><td>50%</td></tr>
+  <tr><td>短音效</td><td>ai/sfx-client.js</td><td>ai/sfx-client.mp.js</td><td>20%</td></tr>
+  <tr><td>渲染层</td><td>ui/renderer.js</td><td>miniapp/pages/*</td><td>0%（整体替换）</td></tr>
+  <tr><td>常量/数据</td><td>data/constants.js</td><td>同文件</td><td>100%</td></tr>
+  <tr><td>惩罚词库</td><td>data/penalties.js</td><td>同文件（全年龄池）</td><td>80%</td></tr>
+  <tr><td>应用入口</td><td>app/actions.js + index.html</td><td>miniapp/app.js + pages</td><td>60%</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s3">3. 模块接口规范</h2>
+
+<h3>3.1 新增模块：engine/room-manager.js</h3>
+
+<pre><code>// 房间管理 — V3 新增模块
+function createRoomManager(stateManager) {
+  const S = stateManager.state
+
+  function createRoom(config) {
+    // config: { maxPlayers, theme, roundCount }
+    S.room = {
+      id: genRoomId(),        // 6位数字
+      status: 'waiting',      // waiting | playing | ended
+      round: 1,
+      maxPlayers: config.maxPlayers || 6,
+      theme: config.theme || 'mixed',
+      totalRounds: config.roundCount || 3,
+      createdAt: Date.now()
+    }
+    return S.room
+  }
+
+  function canStart() {
+    const joined = S.players.filter(p => p.joined && !p.isHost)
+    return joined.length >= 2 && joined.length <= S.room.maxPlayers
+  }
+
+  function getRoomSummary() {
+    // 玩家端看到的大厅信息
+    return {
+      roomId: S.room.id,
+      status: S.room.status,
+      theme: S.room.theme,
+      totalRounds: S.room.totalRounds,
+      playerCount: S.players.filter(p => p.joined && !p.isHost).length,
+      hostName: S.players.find(p => p.isHost)?.nickname || '主持人'
+    }
+  }
+
+  return { createRoom, canStart, getRoomSummary }
+}
+</code></pre>
+
+<h3>3.2 新增模块：ai/sfx-client.js（音效）</h3>
+
+<pre><code>// 短音效客户端 — 平台相关
+// Web: HTMLAudioElement with data URI
+// 小程序: wx.createInnerAudioContext()
+
+// 音效类型
+const SFX = {
+  QUESTION_START: 'question_start',   // 出题叮咚
+  TIMER_TICK:    'timer_tick',        // 最后5秒滴答
+  MATCH_REVEAL:  'match_reveal',     // 匹配揭晓
+  PENALTY_BELL:  'penalty_bell',     // 惩罚铃声
+  GAME_END:      'game_end',         // 游戏结束
+  VOTE_CAST:     'vote_cast',        // 投票提交
+}
+
+function createSfxClient() {
+  const sounds = {}  // 预加载的 AudioBuffer
+
+  async function preload() { /* 预加载所有音效 */ }
+  function play(soundId) { /* 播放指定音效 */ }
+  function stopAll() { /* 停止所有 */ }
+
+  return { preload, play, stopAll, SFX }
+}
+</code></pre>
+
+<h3>3.3 更新模块：ai/ai-client.js</h3>
+
+<pre><code>// V3 新增方法
+const aiClient = {
+  // ... 现有方法
+
+  // 新增
+  generateHostLine,     // 主持话术（已有）
+  polishQuestion,       // 题目润色（V3新增）
+  generateShareText,    // 分享文案（V3新增）
+  detectSteal,          // 挖墙脚检测（从 analyzeMatches 中拆分）
+}
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s4">4. 数据流设计</h2>
+
+<h3>4.1 完整游戏数据流</h3>
+
+<div class="arch">
+┌─────────────────────────────────────────────────────────────────────┐
+│                         完整游戏数据流                                │
+│                                                                      │
+│  [主持人]                          [Supabase]                    [玩家] │
+│     │                                  │                           │   │
+│     │ 创建房间                           │                           │   │
+│     │──── roomManager.createRoom() ──→ S.room                       │   │
+│     │──── Channel.joinRoom() ────────→ Realtime Channel            │   │
+│     │                                  │                           │   │
+│     │                                  │  ← PLAYER_JOINED ──────────│──│
+│     │ 更新玩家列表                       │                           │   │
+│     │── ROOM_STATE ──────────────────→ │ ── ROOM_STATE ──────────→ │   │
+│     │                                  │                           │   │
+│     │ 开始游戏                           │                           │   │
+│     │── GAME_STARTED ────────────────→ │ ── GAME_STARTED ────────→ │   │
+│     │                                  │                           │   │
+│     │ 出题（预出题→审核→发布）              │                           │   │
+│     │── AI: generateQuestion()          │                           │   │
+│     │── (预览，仅主持人)                  │                           │   │
+│     │── 发布: QUESTION ───────────────→ │ ── QUESTION ────────────→ │   │
+│     │── TTS: speak(question)            │                           │   │
+│     │── SFX: play(QUESTION_START)        │                           │   │
+│     │                                  │                           │   │
+│     │  倒计时 45s                        │                           │   │
+│     │  TIMER_TICK ────────────────────→ │ ── TIMER_TICK ──────────→ │   │
+│     │  hostLine 轮换                     │                           │   │
+│     │                                  │  ← PLAYER_ANSWER ──────────│──│
+│     │  记录答案                          │                           │   │
+│     │                                  │                           │   │
+│     │  计时结束                           │                           │   │
+│     │── TIMER_END ────────────────────→ │ ── TIMER_END ────────────→ │   │
+│     │── AI: analyzeMatches()            │                           │   │
+│     │── SFX: play(MATCH_REVEAL)          │                           │   │
+│     │── MATCH_RESULT ─────────────────→ │ ── MATCH_RESULT ────────→ │   │
+│     │                                  │                           │   │
+│     │  检查惩罚阈值 (round ≥ 2)            │                           │   │
+│     │── penaltyEngine.checkThresholds()  │                           │   │
+│     │── VOTE_START ───────────────────→ │ ── VOTE_START ──────────→ │   │
+│     │                                  │  ← VOTE_CAST ──────────────│──│
+│     │── VOTE_RESULT ──────────────────→ │ ── VOTE_RESULT ─────────→ │   │
+│     │── SFX: play(PENALTY_BELL)          │                           │   │
+│     │                                  │                           │   │
+│     │  轮次结算                           │                           │   │
+│     │── AI: generateRoundSummary()       │                           │   │
+│     │── ROUND_SETTLEMENT ─────────────→ │ ── ROUND_SETTLEMENT ────→ │   │
+│     │                                  │                           │   │
+│     │  下一轮 / 游戏结束                   │                           │   │
+│     │── ROUND_CHANGED / GAME_ENDED ────→ │ ── 同 ─────────────────→ │   │
+│     │── SFX: play(GAME_END)              │                           │   │
+└─────────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>4.2 重连数据流</h3>
+
+<div class="arch">
+[玩家断线重连]
+
+  1. rejoin() 读取 session (localStorage/wx.storage)
+  2. Channel.joinRoom(roomId, handler)
+  3. broadcast PLAYER_REJOINED
+  4. 500ms 后 requestState()
+         │
+  5. Host 收到 PLAYER_REJOINED
+     └─→ broadcast ROOM_STATE (含完整 snapshot: room + players + game + roundAnswers + vote + penalty + heat)
+         │
+  6. Player 收到 ROOM_STATE
+     └─→ restoreSnapshot(data)
+         ├─ S.room = data.room
+         ├─ S.players = data.players
+         ├─ S.heat = data.heat
+         ├─ S.game = data.game (含 timerRunning, roundPhase, question, roundAnswers)
+         ├─ S.vote = data.vote (当前投票状态)
+         ├─ S.penalty = data.penalty
+         └─ S._answeredThisRound = !!S.game.roundAnswers[S.room.round]?.answers?.[S.playerId]
+         │
+  7. renderFn() → 根据 roundPhase + timerRunning + _answeredThisRound 正确展示 UI
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s5">5. 状态树设计</h2>
+
+<h3>5.1 完整 S 对象（V3 扩展）</h3>
+
+<pre><code>// state/game-state.js — V3 完整状态树
+S = {
+  // === 身份 ===
+  role:        'host' | 'player' | null,
+  playerId:    number,           // host 固定为 0
+  profile:     { id, name, avatar },
+
+  // === 房间 ===
+  room: {
+    id:           string,        // 6位房码
+    status:       'waiting' | 'playing' | 'ended',
+    round:        number,        // 当前轮 1-4
+    maxPlayers:   number,        // 2-10
+    theme:        string,        // 'casual' | 'deep' | 'mixed'
+    totalRounds:  number,        // 2-4
+    createdAt:    number         // timestamp
+  },
+
+  // === 玩家 ===
+  players: [{
+    id:         number,
+    nickname:   string,
+    avatar:     string,          // emoji
+    joined:     boolean,
+    isHost:     boolean,
+    coins:      number,          // 积分（V3新增）
+    connected:  boolean          // 在线状态（V3新增）
+  }],
+
+  // === 匹配数据 ===
+  heat:         { '1-3': 65 },  // 匹配度
+  crush:        { 1: [3] },     // 心仪对象
+  jealousy:     { 1: 2 },       // 嫉妒值
+
+  // === 惩罚与投票 ===
+  penalty:      null | {        // 当前惩罚
+    type:       'rise' | 'fall' | 'steal',
+    pair:       [number, number],
+    selected:   { label, icon, text },
+    executedAt: number,
+    confirmed:  boolean         // V3新增：执行确认
+  },
+  vote:         null | {
+    type:       'rise' | 'fall',
+    pairKey:    string,
+    candidates: [{ type, key, label, icon, text, votes }],
+    tally:      { playerId: candidateIndex },
+    winner:     { ... } | null
+  },
+
+  // === 回答数据 ===
+  roundAnswers: {
+    [round]: {
+      question:   string,
+      answers:    { playerId: text },
+      directions: { playerId: label }
+    }
+  },
+
+  // === 游戏状态 ===
+  game: {
+    question:       string | null,      // 当前题目
+    questionId:     string | null,
+    questionLevel:  'AI' | 'local',
+    questionCount:  number,             // 本轮已出题数
+    timerEnd:       number | null,
+    timerRunning:   boolean,
+    roundPhase:     'question' | 'analysis' | 'results' | 'penalty' | 'settlement' | 'ended',
+    settlementData: object | null,
+    usedQuestions:  Set,                // 已用题目去重
+
+    // V3 新增
+    _draftQuestion:   string | null,    // 预出题草稿
+    _draftQuestionId: string | null,
+    _hostLine:        string | null,    // 当前话术
+    _matchAnalysis:   string,           // AI 分析文本
+    _gameReport:      object | null,    // 终局报告
+    _aiThinking:      boolean,
+    _lastDirections:  string | null,    // 前几题方向汇总
+    roundAnswers:     object,           // (含在快照中)
+    _lastSteal:       object | null,    // 最近挖墙脚结果
+
+    // V3 新增音效状态
+    _sfxEnabled:      boolean,          // 音效开关
+    _ttsEnabled:      boolean           // TTS 开关
+  },
+
+  // === 日志 ===
+  logs: [{ type, data, ts }],
+
+  // === 审核（V3新增，仅小程序） ===
+  _auditTokens: []    // 审核 token 队列，用于安全接口回调
+}
+</code></pre>
+
+<h3>5.2 快照序列化规则（V3 更新）</h3>
+
+<pre><code>// getSnapshot() 序列化要点：
+// 1. usedQuestions: Set → Array
+// 2. roundAnswers: 含在 game.roundAnswers 中，确保 ROOM_STATE 携带
+// 3. vote: 完整序列化（含 candidates 和 tally）
+// 4. penalty: 完整序列化
+// 5. _draftQuestion: 仅 host 端保存，不广播给 player
+// 6. _auditTokens: 不序列化（敏感数据）
+
+// restoreSnapshot(snap) 反序列化要点：
+// 1. usedQuestions: Array → Set
+// 2. 保留 S.profile / S.playerId / S.role（身份信息不从快照恢复）
+// 3. 校验 game.roundPhase 合法性
+// 4. 若 game.timerRunning 且 timerEnd 已过期 → 纠正为 false
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s6">6. 数据库设计</h2>
+
+<h3>6.1 Supabase 表结构</h3>
+
+<table>
+  <tr><th>表名</th><th>字段</th><th>用途</th></tr>
+  <tr>
+    <td><code>game_snapshots</code></td>
+    <td>game_id (PK), snapshot (JSONB), round (int), updated_at, created_at</td>
+    <td>游戏状态远端存储，每轮结束 upsert</td>
+  </tr>
+  <tr>
+    <td><code>audit_logs</code></td>
+    <td>id (PK), game_id, player_id, content_type, content, check_result (JSONB), created_at</td>
+    <td>内容安全审核日志，保留 90 天</td>
+  </tr>
+  <tr>
+    <td><code>rooms</code></td>
+    <td>room_id (PK), host_name, theme, player_count, status, created_at, ended_at</td>
+    <td>房间统计（可选，用于运营分析）</td>
+  </tr>
+  <tr>
+    <td><code>game_reports</code></td>
+    <td>id (PK), game_id, final_pairs (JSONB), share_text, created_at</td>
+    <td>终局报告，用于分享卡片生成</td>
+  </tr>
+</table>
+
+<h3>6.2 快照 upsert 策略</h3>
+
+<pre><code>// 触发时机：
+// 1. 每轮结算后 (hostSettleRound)
+// 2. 游戏结束后 (hostEndGame)
+// 3. 主持人主动保存 (admin 按钮)
+
+// Upsert SQL:
+INSERT INTO game_snapshots (game_id, snapshot, round, updated_at)
+VALUES ('624917', '{...}', 2, NOW())
+ON CONFLICT (game_id) DO UPDATE
+SET snapshot = EXCLUDED.snapshot,
+    round = EXCLUDED.round,
+    updated_at = EXCLUDED.updated_at;
+
+// 过期策略：游戏结束 7 天后自动清理 (Supabase 定时任务)
+</code></pre>
+
+<h3>6.3 缓存分层策略</h3>
+
+<table>
+  <tr><th>层级</th><th>存储</th><th>生命周期</th><th>用途</th></tr>
+  <tr><td>L1 内存</td><td>S 对象</td><td>当前会话</td><td>运行中状态</td></tr>
+  <tr><td>L2 本地</td><td>localStorage / wx.setStorage</td><td>30 分钟</td><td>同设备刷新恢复</td></tr>
+  <tr><td>L3 远端</td><td>Supabase game_snapshots</td><td>7 天</td><td>跨设备恢复 + 重连</td></tr>
+  <tr><td>L4 归档</td><td>Supabase game_reports</td><td>永久</td><td>分享卡片 + 运营分析</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s7">7. 消息协议</h2>
+
+<h3>7.1 下行消息（Host → All）</h3>
+
+<table>
+  <tr><th>type</th><th>data 字段</th><th>触发时机</th><th>V3 变更</th></tr>
+  <tr><td><code>ROOM_STATE</code></td><td>room, players, game, heat, vote, penalty, roundAnswers</td><td>玩家加入/重连/每3秒</td><td>新增 vote, penalty, roundAnswers 字段</td></tr>
+  <tr><td><code>GAME_STARTED</code></td><td>roomId, round, roundName, theme, totalRounds</td><td>游戏开始</td><td>新增 theme, totalRounds</td></tr>
+  <tr><td><code>QUESTION</code></td><td>question, questionId, level, round, timer, reopen</td><td>主持人发布题目</td><td>V2 已有，不变</td></tr>
+  <tr><td><code>TIMER_TICK</code></td><td>timerRemaining</td><td>每秒</td><td>不变</td></tr>
+  <tr><td><code>TIMER_END</code></td><td>answers</td><td>计时结束</td><td>不变</td></tr>
+  <tr><td><code>MATCH_RESULT</code></td><td>pairs, analysis, round, steals</td><td>AI 分析完成</td><td>新增 steals 字段（第3轮）</td></tr>
+  <tr><td><code>VOTE_START</code></td><td>vtype, pairKey, pairNames, candidates, thresholdInfo</td><td>惩罚触发</td><td>新增 pairNames</td></tr>
+  <tr><td><code>VOTE_RESULT</code></td><td>winner, penalty, pairKey, pairNames</td><td>投票完成</td><td>新增 pairNames</td></tr>
+  <tr><td><code>STEAL_SUCCESS</code></td><td>winner_id, target_id, new_match, winner_name, target_name</td><td>挖墙脚成功</td><td>V3 完善</td></tr>
+  <tr><td><code>ROUND_SETTLEMENT</code></td><td>round, roundName, topPairs, summary, isLastRound, jealousy</td><td>轮次结算</td><td>不变</td></tr>
+  <tr><td><code>ROUND_CHANGED</code></td><td>round, roundName</td><td>进入下一轮</td><td>新增 roundName</td></tr>
+  <tr><td><code>JEALOUSY_UPDATED</code></td><td>jealousy</td><td>嫉妒值计算完</td><td>不变</td></tr>
+  <tr><td><code>AI_THINKING</code></td><td>thinking: bool</td><td>AI 调用中</td><td>不变</td></tr>
+  <tr><td><code>GAME_ENDED</code></td><td>heat, finalPairs, report, topMatch, stats, shareText</td><td>游戏结束</td><td>新增 shareText</td></tr>
+  <tr><td><code>PENALTY_CONFIRMED</code></td><td>pairKey, pairNames, penalty</td><td>主持人确认惩罚执行</td><td>V3 新增</td></tr>
+  <tr><td><code>ROOM_CONFIG</code></td><td>theme, totalRounds, maxPlayers</td><td>房间配置更新</td><td>V3 新增</td></tr>
+</table>
+
+<h3>7.2 上行消息（Player → Host）</h3>
+
+<table>
+  <tr><th>type</th><th>data 字段</th><th>触发</th><th>V3 变更</th></tr>
+  <tr><td><code>PLAYER_JOINED</code></td><td>playerId, nickname, avatar</td><td>玩家加入</td><td>不变</td></tr>
+  <tr><td><code>PLAYER_REJOINED</code></td><td>playerId, nickname, avatar</td><td>玩家重连</td><td>不变</td></tr>
+  <tr><td><code>PLAYER_ANSWER</code></td><td>playerId, questionId, answer</td><td>提交回答</td><td>V3: 前端过 msgSecCheck 后再发送</td></tr>
+  <tr><td><code>VOTE_CAST</code></td><td>playerId, candidateIndex</td><td>投票</td><td>不变</td></tr>
+  <tr><td><code>STEAL_PUNISH</code></td><td>steal_event_id, penalty_text</td><td>挖墙脚自选惩罚</td><td>V3: 需过安全检测</td></tr>
+  <tr><td><code>ROOM_STATE_REQUEST</code></td><td>—</td><td>请求状态同步</td><td>不变</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s8">8. AI 服务架构</h2>
+
+<h3>8.1 多模型路由</h3>
+
+<pre><code>// ai/ai-client.js — V3 多模型支持
+const AI_PROVIDERS = {
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    platform: 'web'              // Web 模拟器阶段使用
+  },
+  hunyuan: {
+    baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1',
+    model: 'hunyuan-lite',
+    platform: 'miniapp'          // 小程序阶段使用
+  }
+}
+
+// 通过 window.PLATFORM 或构建变量选择
+// Web: AI_CONFIG = AI_PROVIDERS.deepseek
+// 小程序: AI_CONFIG = AI_PROVIDERS.hunyuan
+</code></pre>
+
+<h3>8.2 Prompt 模板体系（V3 扩展）</h3>
+
+<pre><code>// ai/prompt-templates.js — V3 模板清单
+const templates = {
+  // 现有模板
+  SYSTEM_PROMPT,
+  buildQuestionPrompt,        // 出题（含 round1/2/3 分轮指导）
+  buildMatchAnalysisPrompt,   // 匹配分析（含 round3 挖墙脚检测）
+  buildRoundSummaryPrompt,    // 轮次结算
+  buildGameSummaryPrompt,     // 终局报告
+  buildHostLinePrompt,        // 主持话术
+
+  // V3 新增模板
+  buildPolishPrompt,          // 题目润色：太正经→重写，太平淡→加料
+  buildShareTextPrompt,       // 分享文案生成
+  buildWarmupPrompt,          // 开局暖场台词（区别于答题中话术）
+  buildResultPrompt,          // 匹配结果解读（主持人对玩家说的话）
+  buildPenaltyPrompt,         // 惩罚宣布台词
+  buildEndCeremonyPrompt      // 终局仪式台词
+}
+</code></pre>
+
+<h3>8.3 CF Function 资源规划</h3>
+
+<table>
+  <tr><th>端点</th><th>调用频率</th><th>平均延迟</th><th>付费计划</th></tr>
+  <tr><td><code>/api/ai</code></td><td>每场 ~15 次（出题 + 分析 + 结算）</td><td>2-5s</td><td>Free: 10ms CPU，需切 Paid: 50ms</td></tr>
+  <tr><td><code>/api/tts</code></td><td>每场 ~20 次（每道题）</td><td>1-3s</td><td>Free 够用</td></tr>
+  <tr><td><code>/api/audit</code></td><td>每条 UGC 1 次</td><td>0.5s</td><td>V3 新增，Free 够用</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s9">9. 安全与内容审核</h2>
+
+<h3>9.1 多层审核架构</h3>
+
+<div class="arch">
+[用户输入] → [前端预处理] → [微信 msgSecCheck] → [腾讯云 IMS] → [通过/拒绝]
+                         ↓                    ↓
+                    [审核日志 (Supabase)]
+
+前端预处理：
+  - 敏感词本地过滤（正则+词库）
+  - 长度限制（昵称 ≤8字，回答 ≤50字）
+  - 空值/重复检测
+
+微信 msgSecCheck (仅小程序)：
+  - 调用 wx.cloud.callFunction 或直接 API
+  - 返回: PASS / REVIEW / BLOCK
+
+腾讯云 IMS (Web + 小程序后端兜底)：
+  - 文本内容安全检测
+  - 返回: Normal / Porn / Abuse / Ad / Illegal 等标签
+  - 建议阈值: 任何非 Normal 标签 → REVIEW → 人工
+
+审核日志 (Supabase audit_logs):
+  - 记录 content_type, content, check_result, timestamp
+  - 保留 90 天
+  - REVIEW 结果 24h 内人工处理
+</div>
+
+<h3>9.2 小程序文本安全检测流程</h3>
+
+<pre><code>// 玩家提交回答
+async function submitAnswer(text) {
+  // Step 1: 前端预处理
+  const trimmed = text.trim().slice(0, 50)
+  if (!trimmed || trimmed.length < 1) return toast('请输入回答')
+
+  // Step 2: 微信安全检测 (小程序)
+  if (PLATFORM === 'miniapp') {
+    const checkResult = await wx.cloud.callFunction({
+      name: 'contentCheck',
+      data: { content: trimmed, scene: 1 }
+    })
+    if (checkResult.result.suggest === 'risky') {
+      return toast('内容不合规，请重新输入')
+    }
+    // 记录审核日志
+    logAudit(S.playerId, 'answer', trimmed, checkResult)
+  }
+
+  // Step 3: 广播回答
+  Channel.broadcast({ type: 'PLAYER_ANSWER', ... })
+}
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s10">10. 小程序合规方案</h2>
+
+<h3>10.1 材料清单</h3>
+
+<table>
+  <tr><th>#</th><th>材料</th><th>状态</th><th>获取方式</th></tr>
+  <tr><td>1</td><td>企业营业执照</td><td>需办理</td><td>工商注册，个体户约 300 元</td></tr>
+  <tr><td>2</td><td>算法备案证明</td><td>可下载</td><td>使用腾讯混元 SDK，下载其备案号</td></tr>
+  <tr><td>3</td><td>技术服务合作协议</td><td>需签署</td><td>与 AI 服务商签署，含算法备案编号</td></tr>
+  <tr><td>4</td><td>隐私政策</td><td>需撰写</td><td>参考模板 + 律师审核</td></tr>
+  <tr><td>5</td><td>内容安全方案说明</td><td>需撰写</td><td>描述 msgSecCheck + IMS + 审核日志</td></tr>
+  <tr><td>6</td><td>AI 内容标识说明</td><td>需撰写</td><td>描述标识位置、方式、截图</td></tr>
+  <tr><td>7</td><td>审核说明文案</td><td>需撰写</td><td>提审时备注：类目、备案号、安全机制</td></tr>
+</table>
+
+<h3>10.2 AI 内容标识规范</h3>
+
+<pre><code>// 标识位置：
+// 1. AI 出题：题目卡片底部灰色小字"内容由AI生成"
+// 2. AI 分析：分析面板底部同上
+// 3. AI 总结：结算页底部同上
+// 4. 分享卡片：图片底部白色半透明文字
+
+// CSS 实现：
+.ai-label {
+  font-size: 10px;
+  color: var(--t3);
+  text-align: center;
+  padding: 4px 0;
+}
+
+// WXML 实现：
+&lt;view class="ai-label" wx:if="{{isAIGenerated}}"&gt;内容由AI生成&lt;/view&gt;
+</code></pre>
+
+<h3>10.3 小程序类目选择</h3>
+
+<div class="card info">
+  <strong>推荐类目组合</strong>：
+  <ol>
+    <li>主类目：<strong>工具-信息查询</strong>（基础类目，审核较宽松）</li>
+    <li>补充类目一：<strong>深度合成</strong>（因为 AI 生成内容）</li>
+    <li>补充类目二：<strong>社交-社区/论坛</strong>（因为玩家输入文字）</li>
+  </ol>
+  <br>
+  <strong>不推荐</strong>：游戏类目——容易触发版号要求，审核周期长。我们的产品定位是"聚会破冰工具"而非"游戏"，可以规避游戏类目。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s11">11. 部署架构</h2>
+
+<h3>11.1 部署拓扑</h3>
+
+<div class="arch">
+                         ┌──────────────────┐
+                         │  Cloudflare DNS   │
+                         │  36.bigbigox...   │
+                         └────────┬─────────┘
+                                  │
+                    ┌─────────────┴─────────────┐
+                    ▼                           ▼
+          ┌──────────────┐            ┌──────────────────┐
+          │ CF Pages     │            │ CF Pages         │
+          │ Production   │            │ Preview Deploy   │
+          │ (master)     │            │ (per-commit)     │
+          └──────┬───────┘            └──────────────────┘
+                 │
+     ┌───────────┼───────────┐
+     ▼           ▼           ▼
+  /index.html  /assets   /functions
+  (静态)       (JS/CSS)   /api/ai
+                          /api/tts
+                          /api/audit (V3新增)
+                 │
+                 ▼
+     ┌──────────────────────┐
+     │  Supabase            │
+     │  ├ Realtime (广播)    │
+     │  ├ PostgreSQL (数据)  │
+     │  └ Storage (分享图)   │
+     └──────────────────────┘
+</div>
+
+<h3>11.2 环境变量管理</h3>
+
+<pre><code>// CF Pages 环境变量 (通过 wrangler.toml 或 Dashboard 设置)
+[env.production.vars]
+AI_API_KEY = "sk-..."         // DeepSeek API Key
+BAIDU_TTS_KEY = "8ybKIDW..."  // 百度 TTS API Key
+BAIDU_TTS_SECRET = "w2XTm8..."// 百度 TTS Secret
+SUPABASE_URL = "https://qrq..."
+SUPABASE_KEY = "sb_publisha..."
+TENCENT_IMS_SECRET_ID = "..."  // V3新增: 腾讯云IMS
+TENCENT_IMS_SECRET_KEY = "..." // V3新增: 腾讯云IMS
+
+// 本地开发: .dev.vars (gitignore)
+// 生产: wrangler pages deploy 自动读取 Dashboard 变量
+</code></pre>
+
+<h3>11.3 CI/CD 流水线</h3>
+
+<pre><code>// V3 推荐 GitHub Actions 自动部署
+// .github/workflows/deploy.yml
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g wrangler
+      - run: node --check data/constants.js state/game-state.js engine/*.js ai/*.js app/actions.js
+      - run: wrangler pages deploy . --branch master
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s12">12. 测试策略</h2>
+
+<h3>12.1 测试金字塔</h3>
+
+<table>
+  <tr><th>层级</th><th>范围</th><th>工具</th><th>覆盖目标</th></tr>
+  <tr><td>单元测试</td><td>engine/*, state/*, data/*</td><td>Vitest + jsdom</td><td>核心逻辑 80%+</td></tr>
+  <tr><td>集成测试</td><td>AI 调用, Channel, TTS</td><td>Vitest + mock</td><td>关键路径 100%</td></tr>
+  <tr><td>端到端测试</td><td>完整游戏流程</td><td>Playwright</td><td>主流程 100%</td></tr>
+  <tr><td>手动测试</td><td>UI/UX, 多设备同步</td><td>真实设备</td><td>每次发布前</td></tr>
+  <tr><td>审核测试</td><td>内容安全, 合规</td><td>微信开发者工具</td><td>提审前</td></tr>
+</table>
+
+<h3>12.2 关键测试用例</h3>
+
+<pre><code>// 单元测试
+describe('round-manager', () => {
+  it('round 1 question count = players * 2')
+  it('round 2 question count = 5')
+  it('round 3 question count = 3')
+  it('startRound(3) clears logs')
+  it('endRound(1) calculates jealousy')
+  it('isRoundComplete when questionCount >= limit')
+  it('penalties skip on round 1')
+})
+
+describe('match-calc', () => {
+  it('updateHeat within [0, 100]')
+  it('stealthBoost returns success when quality > 0.53')
+  it('calcJealousy with empty crush returns empty')
+  it('getTopPairs returns sorted by score desc')
+  it('heatKey always returns min-max order')
+})
+
+describe('penalty-engine', () => {
+  it('checkThresholds triggers at >= 50 (rise)')
+  it('checkThresholds triggers at <= 40 (fall)')
+  it('generateCandidates returns 5 items')
+  it('resolveVote picks highest vote')
+})
+
+describe('state', () => {
+  it('getSnapshot serializes usedQuestions to array')
+  it('restoreSnapshot converts usedQuestions back to Set')
+  it('saveSession/loadSession roundtrip')
+  it('saveHostBackup includes crush, roundAnswers')
+  it('reset clears everything')
+})
+
+// 集成测试
+describe('ai-client', () => {
+  it('generateQuestion returns valid JSON with func:new_question')
+  it('analyzeMatches returns pairs array')
+  it('generateCommentary returns non-empty text')
+  it('validateJSON rejects missing func')
+  it('extractJSON handles markdown-wrapped JSON')
+})
+
+// 端到端测试
+describe('game flow', () => {
+  it('host creates room → players join → game starts → 3 rounds → ends')
+  it('player disconnect and rejoin mid-game')
+  it('host disconnect and rejoin mid-game')
+  it('penalty triggers and vote resolves')
+  it('steal success in round 3')
+})
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s13">13. 实施路线</h2>
+
+<div class="phase">
+  <div class="phase-step">
+    <div class="icon">🔧</div>
+    <div class="title">Phase 1：修地基</div>
+    <div class="status" style="color:var(--r)">P0 · 2-3天</div>
+  </div>
+  <div class="phase-step">
+    <div class="icon">✨</div>
+    <div class="title">Phase 2：磨体验</div>
+    <div class="status" style="color:var(--warm)">P1 · 1周</div>
+  </div>
+  <div class="phase-step">
+    <div class="icon">📱</div>
+    <div class="title">Phase 3：搬小程序</div>
+    <div class="status" style="color:var(--y)">P2 · 2-3周</div>
+  </div>
+</div>
+
+<h3>Phase 1 — 修地基（2-3天）</h3>
+<table>
+  <tr><th>#</th><th>任务</th><th>涉及文件</th></tr>
+  <tr><td>1.1</td><td>状态恢复重构：getSnapshot 含 roundAnswers, vote, penalty；ROOM_STATE handler 完整恢复</td><td>state/game-state.js, app/actions.js</td></tr>
+  <tr><td>1.2</td><td>惩罚流闭环：VOTE_START 含 pairNames → 玩家面板显示对象 → VOTE_RESULT 含对象 → PENALTY_CONFIRMED 动画</td><td>app/actions.js, ui/renderer.js, index.html</td></tr>
+  <tr><td>1.3</td><td>匹配结果常驻：matchPanel 不因新题消失，手动关闭或下一道题才更新</td><td>ui/renderer.js</td></tr>
+  <tr><td>1.4</td><td>挖墙脚完善：STEAL_SUCCESS 全链路，被挖方可见新匹配，成功者自选惩罚入口</td><td>engine/match-calc.js, app/actions.js, ui/renderer.js</td></tr>
+  <tr><td>1.5</td><td>TTS 稳定化：unlock 前置总入口、CF Function 3次重试、播放状态 toast、降级静默</td><td>ai/tts-client.js, functions/api/tts.js, app/actions.js</td></tr>
+  <tr><td>1.6</td><td>Supabase 快照表建好，saveRemote/loadRemote 验证端到端</td><td>state/game-state.js, SQL migration</td></tr>
+  <tr><td>1.7</td><td>引擎单元测试：match-calc, penalty-engine, round-manager, game-state</td><td>tests/engine/*.test.js</td></tr>
+</table>
+
+<h3>Phase 2 — 磨体验（1周）</h3>
+<table>
+  <tr><th>#</th><th>任务</th><th>涉及文件</th></tr>
+  <tr><td>2.1</td><td>游戏大厅：创建房间 → 选配置 → 生成房码 → 等待玩家 → 开始</td><td>engine/room-manager.js, ui/renderer.js, index.html</td></tr>
+  <tr><td>2.2</td><td>主持人仪表盘：进度条、已回答比例、热力图、惩罚历史</td><td>ui/renderer.js, index.html</td></tr>
+  <tr><td>2.3</td><td>终局仪式：TOP3 揭晓动画 + 最佳默契 + 意外组合 + AI 总结</td><td>ui/renderer.js, index.html</td></tr>
+  <tr><td>2.4</td><td>音效系统：预加载 + 出题/倒计时/揭晓/惩罚/结束音效</td><td>ai/sfx-client.js</td></tr>
+  <tr><td>2.5</td><td>题目润色：AI 出题后再过 polishQuestion prompt</td><td>ai/prompt-templates.js, ai/ai-client.js, app/actions.js</td></tr>
+  <tr><td>2.6</td><td>分享卡片：Canvas 生成图片 + 转发微信群</td><td>ui/share-renderer.js（新增）</td></tr>
+  <tr><td>2.7</td><td>话术系统 2.0：按时机分类模板 + AI 生成更精准</td><td>ai/prompt-templates.js, ui/renderer.js</td></tr>
+</table>
+
+<h3>Phase 3 — 搬小程序（2-3周）</h3>
+<table>
+  <tr><th>#</th><th>任务</th><th>涉及文件</th></tr>
+  <tr><td>3.1</td><td>项目脚手架：miniapp/ 目录、app.json、page 结构、npm 配置</td><td>miniapp/*</td></tr>
+  <tr><td>3.2</td><td>渲染层替换：6 个页面（首页/大厅/角色/主持端/玩家端/结算）</td><td>miniapp/pages/*</td></tr>
+  <tr><td>3.3</td><td>通道适配：supabase-js 小程序版 + wx.request 封装</td><td>channel/supabase-channel.mp.js</td></tr>
+  <tr><td>3.4</td><td>AI 切换：腾讯混元 API + ai-client.mp.js</td><td>ai/ai-client.mp.js</td></tr>
+  <tr><td>3.5</td><td>TTS 切换：微信 RealtimeTTS 插件</td><td>ai/tts-client.mp.js</td></tr>
+  <tr><td>3.6</td><td>音效切换：wx.createInnerAudioContext</td><td>ai/sfx-client.mp.js</td></tr>
+  <tr><td>3.7</td><td>存储适配：wx.setStorageSync + Supabase</td><td>state/game-state.mp.js</td></tr>
+  <tr><td>3.8</td><td>内容安全接入：msgSecCheck + 腾讯云 IMS + 审核日志</td><td>functions/api/audit.js</td></tr>
+  <tr><td>3.9</td><td>登录流程：wx.login + 微信头像昵称组件 + 隐私政策页</td><td>miniapp/pages/entry/*</td></tr>
+  <tr><td>3.10</td><td>AI 内容标识：所有 AI 输出加标注</td><td>miniapp/components/ai-label/*</td></tr>
+  <tr><td>3.11</td><td>合规材料：备案证明、隐私政策、安全方案说明、审核文案</td><td>docs/compliance/*</td></tr>
+  <tr><td>3.12</td><td>提审：微信开发者工具上传 → 提交审核 → 处理反馈</td><td>—</td></tr>
+</table>
+
+</body>
+</html>

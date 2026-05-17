@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三六局 V2 — 完整设计方案</title>
+<style>
+  :root {
+    --bg: #0D1117; --card: #161B22; --border: #30363D;
+    --text: #C9D1D9; --t2: #8B949E; --t3: #6E7681;
+    --g: #3FB950; --r: #F85149; --y: #D29922; --b: #58A6FF; --p: #BC8CFF;
+    --warm: #F97316;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.8;
+    max-width: 960px; margin: 0 auto; padding: 40px 24px 120px;
+  }
+  h1 { font-size: 32px; margin-bottom: 4px; }
+  h1 span { color: var(--warm); }
+  .meta { color: var(--t2); font-size: 13px; margin-bottom: 40px; }
+  h2 {
+    font-size: 22px; margin-top: 48px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--border); color: var(--b);
+  }
+  h3 { font-size: 17px; margin-top: 32px; color: var(--y); }
+  h4 { font-size: 14px; margin-top: 20px; color: var(--t2); text-transform: uppercase; letter-spacing: 1px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px; margin: 16px 0;
+  }
+  .card.warn { border-left: 3px solid var(--y); }
+  .card.info { border-left: 3px solid var(--b); }
+  .card.good { border-left: 3px solid var(--g); }
+  .card.danger { border-left: 3px solid var(--r); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--t2); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  td code { background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+
+  .flow { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+  .flow-step {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 18px; flex: 1; min-width: 180px;
+  }
+  .flow-step .n { font-size: 24px; font-weight: 800; color: var(--warm); }
+  .flow-step .label { font-weight: 700; margin: 4px 0; font-size: 14px; }
+  .flow-step .desc { font-size: 12px; color: var(--t2); }
+
+  .tag {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; margin-right: 6px;
+  }
+  .tag-new { background: rgba(63,185,80,.15); color: var(--g); }
+  .tag-chg { background: rgba(210,153,34,.15); color: var(--y); }
+  .tag-del { background: rgba(248,81,73,.15); color: var(--r); }
+  .tag-keep { background: rgba(88,166,255,.15); color: var(--b); }
+
+  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 16px; overflow-x: auto; font-size: 12px; line-height: 1.6; }
+  code { font-family: 'SF Mono', 'Consolas', monospace; }
+
+  ul, ol { padding-left: 24px; }
+  li { margin: 6px 0; }
+
+  .toc { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px 28px; margin: 32px 0; }
+  .toc a { color: var(--b); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ol { columns: 2; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+  .compare .old { background: rgba(248,81,73,.06); border: 1px solid rgba(248,81,73,.2); border-radius: 8px; padding: 14px; }
+  .compare .new { background: rgba(63,185,80,.06); border: 1px solid rgba(63,185,80,.2); border-radius: 8px; padding: 14px; }
+  .compare h4 { margin-top: 0; }
+
+  .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin: 12px 0; }
+  .module-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+  }
+  .module-card .m-name { font-weight: 700; color: var(--b); font-size: 15px; margin-bottom: 6px; }
+  .module-card .m-file { font-size: 11px; color: var(--t3); font-family: 'SF Mono','Consolas',monospace; margin-bottom: 8px; }
+  .module-card .m-desc { font-size: 12px; color: var(--t2); }
+  .module-card .m-port { font-size: 11px; color: var(--y); margin-top: 8px; }
+  .module-card .m-port span { color: var(--t3); }
+
+  .platform { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 12px 0; }
+  .platform-step {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center;
+  }
+  .platform-step .icon { font-size: 36px; margin-bottom: 8px; }
+  .platform-step .title { font-weight: 700; }
+  .platform-step .status { font-size: 11px; color: var(--g); }
+  .platform-step .status.wait { color: var(--t2); }
+
+  @media (max-width: 700px) {
+    .toc ol { columns: 1; }
+    .compare { grid-template-columns: 1fr; }
+    .module-grid { grid-template-columns: 1fr; }
+    .platform { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>三六局 <span>V2</span></h1>
+<p class="meta">完整设计方案 · 2026-05-15 · 模块化架构 · 目标平台：微信小程序</p>
+
+<div class="toc">
+  <h4 style="margin-bottom:12px;">目录</h4>
+  <ol>
+    <li><a href="#s0">设计原则：模块化 + 小程序导向</a></li>
+    <li><a href="#s1">模块拆分方案</a></li>
+    <li><a href="#s2">角色重定义</a></li>
+    <li><a href="#s3">三轮流程重设计</a></li>
+    <li><a href="#s4">奖惩机制</a></li>
+    <li><a href="#s5">AI System Prompt</a></li>
+    <li><a href="#s6">JSON 输出规范</a></li>
+    <li><a href="#s7">日志流转 & Token 控制</a></li>
+    <li><a href="#s8">终端渲染协议</a></li>
+    <li><a href="#s9">重进恢复方案</a></li>
+    <li><a href="#s10">部署 & 移植路径</a></li>
+    <li><a href="#s11">待讨论问题</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s0">0. 设计原则</h2>
+
+<div class="card good">
+  <strong>原则一：模块化</strong><br>
+  每个模块代码不超过 300 行（当前 index.html 2038 行太重）。模块间通过明确的输入/输出接口通信。微调某个功能时只改一个模块，不影响其他。BUG 定位只需排查该模块。<br><br>
+  <strong>原则二：微信小程序导向</strong><br>
+  当前 Web 版是<strong>模拟器</strong>——用浏览器模拟小程序运行环境，验证全部逻辑。跑通后移植到小程序。所有模块设计时就必须考虑移植兼容性：不依赖 DOM API 做业务逻辑、状态管理放到独立层、渲染层可整体替换。
+</div>
+
+<div class="platform">
+  <div class="platform-step">
+    <div class="icon">🌐</div>
+    <div class="title">第一步：Web 模拟器</div>
+    <div class="status">当前阶段</div>
+  </div>
+  <div class="platform-step">
+    <div class="icon">📱</div>
+    <div class="title">第二步：微信小程序</div>
+    <div class="status wait">目标平台</div>
+  </div>
+  <div class="platform-step">
+    <div class="icon">📲</div>
+    <div class="title">第三步：APP</div>
+    <div class="status wait">远期规划</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s1">1. 模块拆分方案</h2>
+
+<div class="card info">
+  <strong>拆分逻辑</strong>：沿数据流方向切分——数据定义 → 状态管理 → 业务逻辑 → AI 通信 → 消息总线 → 渲染。每个模块是独立文件，通过 import 或全局命名空间对接。Web 版用 ES Module/CJS，小程序版用 CommonJS require。
+</div>
+
+<h3>1.1 模块全景</h3>
+
+<div class="module-grid">
+  <div class="module-card">
+    <div class="m-name">📦 data/ 数据定义</div>
+    <div class="m-file">questions.js · penalties.js · constants.js</div>
+    <div class="m-desc">题库（120题+AI生成）、惩罚模板、轮次名、头像列表、热度key算法。纯数据，无逻辑。</div>
+    <div class="m-port"><span>移植：</span>直接复用，无平台依赖</div>
+  </div>
+
+  <div class="module-card">
+    <div class="m-name">🧠 state/ 状态管理</div>
+    <div class="m-file">game-state.js</div>
+    <div class="m-desc">全局状态树 S：room, players, heat, jealousy, vote, penalty, roundAnswers, game。提供 saveSnapshot / loadSnapshot / reset。业务逻辑不直接写 S，通过 state 模块暴露的纯函数操作。</div>
+    <div class="m-port"><span>移植：</span>核心无平台依赖；localStorage → wx.setStorageSync</div>
+  </div>
+
+  <div class="module-card">
+    <div class="m-name">⚙️ engine/ 游戏引擎</div>
+    <div class="m-file">round-manager.js · match-calc.js · penalty-engine.js</div>
+    <div class="m-desc">轮次流转控制（startRound/nextRound/endGame）、匹配度计算（heat/crush/jealousy 算法）、惩罚触发判断（阈值检测+候选生成）。纯逻辑，不碰 UI 不碰网络。</div>
+    <div class="m-port"><span>移植：</span>完全复用，纯 JS 逻辑</div>
+  </div>
+
+  <div class="module-card">
+    <div class="m-name">🤖 ai/ AI 通信</div>
+    <div class="m-file">ai-client.js · prompt-templates.js</div>
+    <div class="m-desc">callAI() 封装、超时控制、JSON 解析校验、prompt 模板管理（按轮次/场景分离）。所有 AI 交互的统一入口。</div>
+    <div class="m-port"><span>移植：</span>fetch → wx.request，其余复用</div>
+  </div>
+
+  <div class="module-card">
+    <div class="m-name">📡 channel/ 消息总线</div>
+    <div class="m-file">supabase-channel.js</div>
+    <div class="m-desc">Supabase Realtime 连接管理（joinRoom/leaveRoom/broadcast/onMessage）。消息序列化/反序列化。Web 和小程序各一套适配器，暴露相同接口。</div>
+    <div class="m-port"><span>移植：</span>supabase-js → 小程序版 supabase SDK</div>
+  </div>
+
+  <div class="module-card">
+    <div class="m-name">🖥️ ui/ 渲染层</div>
+    <div class="m-file">renderer-*.js · pages/*.html</div>
+    <div class="m-desc">按页面拆分：entry, role-pick, host-wait, host-console, player-join, player-board。每个页面一个渲染函数，接收 state 片段，输出 HTML/WXML。</div>
+    <div class="m-port"><span>移植：</span>整个替换（DOM → WXML+WXSS），数据绑定逻辑保留</div>
+  </div>
+
+  <div class="module-card">
+    <div class="m-name">🎮 app/ 应用入口</div>
+    <div class="m-file">app.js · actions.js</div>
+    <div class="m-desc">用户交互动作（click→dispatch）：goHost, playerJoin, hostDrawQuestion, playerHeart 等。动作函数调用 engine 模块，结果写入 state，触发 render。此层是 orchestration，不包含业务逻辑。</div>
+    <div class="m-port"><span>移植：</span>动作逻辑复用；事件绑定 DOM onclick → WXML bindtap</div>
+  </div>
+
+  <div class="module-card">
+    <div class="m-name">📊 monitor/ 监控</div>
+    <div class="m-file">monitor.js</div>
+    <div class="m-desc">后台数据采集、规则检测、AI 裁判。独立进程，不嵌入主应用。</div>
+    <div class="m-port"><span>移植：</span>不变，仍在 Node.js 环境运行</div>
+  </div>
+</div>
+
+<h3>1.2 模块依赖图</h3>
+
+<pre><code>                    ┌─────────────┐
+                    │  data/*      │  ← 纯数据，无依赖
+                    └──────┬──────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+       ┌──────────┐ ┌──────────┐ ┌──────────┐
+       │ engine/*  │ │ ai/*     │ │ state    │
+       │ (纯逻辑)  │ │ (通信)   │ │ (状态)   │
+       └─────┬─────┘ └────┬─────┘ └────┬─────┘
+             │            │            │
+             └────────────┼────────────┘
+                          │
+                          ▼
+                   ┌──────────────┐
+                   │ channel/*    │  ← 消息总线
+                   └──────┬───────┘
+                          │
+              ┌───────────┼───────────┐
+              ▼           ▼           ▼
+       ┌──────────┐ ┌──────────┐ ┌──────────┐
+       │ ui/*     │ │ monitor  │ │ app/*    │
+       │ (渲染)   │ │ (后台)   │ │ (入口)   │
+       └──────────┘ └──────────┘ └──────────┘
+</code></pre>
+
+<h3>1.3 微调/BUG修复的操作边界</h3>
+
+<table>
+  <tr><th>要改什么</th><th>只改哪个模块</th><th>不改什么</th></tr>
+  <tr><td>调整题目风格</td><td>ai/prompt-templates.js 中对应轮次的模板</td><td>engine, ui, state</td></tr>
+  <tr><td>改匹配算法</td><td>engine/match-calc.js</td><td>ai, ui, channel</td></tr>
+  <tr><td>改惩罚阈值</td><td>engine/penalty-engine.js 中的常量</td><td>其余全部</td></tr>
+  <tr><td>换 AI 提供商</td><td>ai/ai-client.js 的 BASE_URL + KEY</td><td>其余全部</td></tr>
+  <tr><td>换 UI 风格</td><td>ui/renderer-*.js + CSS/WXSS</td><td>engine, ai, state</td></tr>
+  <tr><td>加新惩罚类型</td><td>data/penalties.js + engine/penalty-engine.js</td><td>ai, channel, ui</td></tr>
+  <tr><td>移植小程序</td><td>ui/* 全部重写 + channel 适配器</td><td>engine, ai, state, data</td></tr>
+  <tr><td>重进恢复 BUG</td><td>state/game-state.js 的 saveSnapshot/loadSnapshot</td><td>其余全部</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s2">2. 角色重定义</h2>
+
+<div class="compare">
+  <div class="old">
+    <h4>V1（当前）</h4>
+    <ul>
+      <li>AI 是旁路辅助角色（评论员）</li>
+      <li>游戏规则硬编码在前端 JS</li>
+      <li>暖心/火花由玩家手动互投</li>
+      <li>固定题库 + AI 题库并存</li>
+      <li>host 浏览器 = 状态中心</li>
+    </ul>
+  </div>
+  <div class="new">
+    <h4>V2（目标）</h4>
+    <ul>
+      <li>AI 担任主持人，全权驱动游戏</li>
+      <li>规则写入 System Prompt</li>
+      <li>暖心/火花由 AI 根据回答客观生成</li>
+      <li>删除固定题库，AI 全量出题</li>
+      <li>CF Function + Supabase = 状态中心</li>
+    </ul>
+  </div>
+</div>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="n">🤖</div>
+    <div class="label">AI 主持人</div>
+    <div class="desc">出题、收集回答、计算匹配度、触发奖惩、生成总结。所有游戏决策由 AI 完成。代码位于 ai/ 模块。</div>
+  </div>
+  <div class="flow-step">
+    <div class="n">👑</div>
+    <div class="label">超级管理员</div>
+    <div class="desc">原"主持人"降级。可查看 AI 结论、手动调整匹配、推翻/修改惩罚、跳过轮次。代码位于 app/actions.js（admin_override）。</div>
+  </div>
+  <div class="flow-step">
+    <div class="n">📱</div>
+    <div class="label">玩家终端</div>
+    <div class="desc">接收 JSON、提交回答（纯文字）、查看匹配结果。不承担计算。代码位于 ui/ + app/。</div>
+  </div>
+</div>
+
+<table>
+  <tr><th>角色</th><th>V1 名称</th><th>V2 名称</th><th>职责变化</th><th>涉及模块</th></tr>
+  <tr><td>人类主持</td><td>主持人</td><td><span class="tag tag-chg">超级管理员</span></td><td>操作者→审核者</td><td>app/actions.js</td></tr>
+  <tr><td>AI</td><td>AI 助手</td><td><span class="tag tag-chg">AI 主持人</span></td><td>评论员→游戏驱动核心</td><td>ai/ + engine/</td></tr>
+  <tr><td>玩家</td><td>玩家</td><td><span class="tag tag-keep">玩家</span></td><td>不变</td><td>ui/player-board</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s3">3. 三轮流程重设计</h2>
+
+<div class="card good">
+  <strong>设计哲学</strong>：前三轮是共识调研，不设投票惩罚。用轻松诙谐的生活化问题收集玩家状态。每轮包含可选 TTS 播报环节。轮次控制逻辑全部在 engine/round-manager.js。
+</div>
+
+<h3>第一轮「信息采集」<span class="tag tag-chg">重命名</span></h3>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="n">1</div>
+    <div class="label">AI 出题 × N</div>
+    <div class="desc">N=玩家数×2 或固定 6-8 题。轻松诙谐，不涉及深度价值观。<br><em>模块：ai/prompt-templates.js → round1_question</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">2</div>
+    <div class="label">独立作答</div>
+    <div class="desc">每人独立文字回答，不公开。终端发送到服务端。<br><em>模块：app/actions.js → submitAnswer</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">3</div>
+    <div class="label">AI 匹配分析</div>
+    <div class="desc">AI 分析所有回答，提取每人思维痕迹，生成初始匹配矩阵。<br><em>模块：ai/ai-client.js + engine/match-calc.js</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">4</div>
+    <div class="label">同步结果</div>
+    <div class="desc">匹配结果 + 分析理由推送所有终端。超管可调整。<br><em>模块：channel/supabase-channel.js → broadcast</em></div>
+  </div>
+</div>
+
+<table>
+  <tr><th>项目</th><th>V1</th><th>V2</th><th>负责模块</th></tr>
+  <tr><td>轮次名</td><td>破冰轮</td><td><span class="tag tag-chg">信息采集</span></td><td>data/constants.js</td></tr>
+  <tr><td>暖心/火花</td><td>玩家互投 +10/+20</td><td><span class="tag tag-del">不存在</span></td><td>engine/round-manager.js（跳过）</td></tr>
+  <tr><td>题目深度</td><td>L1 轻松日常</td><td><span class="tag tag-keep">同等</span>，强调诙谐去正经化</td><td>data/questions.js + ai/prompt-templates.js</td></tr>
+  <tr><td>回答方向</td><td>host 手动标记</td><td><span class="tag tag-del">删除</span>，AI 自动分析</td><td>无（移入 AI prompt）</td></tr>
+  <tr><td>本轮产出</td><td>无</td><td><span class="tag tag-new">初始匹配矩阵</span> + 思维痕迹</td><td>engine/match-calc.js</td></tr>
+</table>
+
+<h3>第二轮「当下匹配」<span class="tag tag-chg">重命名</span></h3>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="n">1</div>
+    <div class="label">上下文注入</div>
+    <div class="desc">AI 收到第一轮匹配数据 + 所有回答日志。基于已有匹配分组出题。<br><em>模块：ai/ai-client.js（附带 round1 快照）</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">2</div>
+    <div class="label">场景化出题</div>
+    <div class="desc">聚焦当下场景："今天想做什么""现在的心情""对在场谁的印象最深"。不涉及深层价值观。<br><em>模块：ai/prompt-templates.js → round2_question</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">3</div>
+    <div class="label">AI 评分</div>
+    <div class="desc">AI 根据回答自动生成暖心值/火花值。不告知原因，只告知结果。<br><em>模块：engine/match-calc.js（接收 AI 返回的 values）</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">4</div>
+    <div class="label">阈值触发</div>
+    <div class="desc">达到阈值 → 触发奖惩。全端同步。玩家投票选具体内容。<br><em>模块：engine/penalty-engine.js</em></div>
+  </div>
+</div>
+
+<table>
+  <tr><th>项目</th><th>V1</th><th>V2</th><th>负责模块</th></tr>
+  <tr><td>轮次名</td><td>结对轮</td><td><span class="tag tag-chg">当下匹配</span></td><td>data/constants.js</td></tr>
+  <tr><td>二选一</td><td>5 题</td><td><span class="tag tag-del">删除</span></td><td>无</td></tr>
+  <tr><td>暖心值来源</td><td>玩家互投</td><td><span class="tag tag-chg">AI 客观生成</span></td><td>engine/match-calc.js</td></tr>
+  <tr><td>火花值来源</td><td>玩家互投</td><td><span class="tag tag-chg">AI 根据偏离生成</span></td><td>engine/match-calc.js</td></tr>
+</table>
+
+<h3>第三轮「人性博弈」<span class="tag tag-chg">重命名 · 核心玩点</span></h3>
+
+<div class="card danger">
+  <strong>⚠️ 上下文清理</strong>：本轮开始前，清空所有前两轮对话日志。只保留：每人匹配数据、匹配度数值、暖心/火花累计值。AI 从零开始中立匹配。代码位于 engine/round-manager.js → startRound(3)。
+</div>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="n">1</div>
+    <div class="label">清空上下文</div>
+    <div class="desc">删除对话日志，只传匹配数据。节省 token，保证中立。<br><em>模块：engine/round-manager.js → clearContext()</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">2</div>
+    <div class="label">深度出题</div>
+    <div class="desc">价值观、情感、灵魂拷问。每人独立作答。<br><em>模块：ai/prompt-templates.js → round3_question</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">3</div>
+    <div class="label">隐蔽挖墙脚</div>
+    <div class="desc">玩家通过回答悄悄提升与目标匹配度。不线下公开。AI 中立计算。<br><em>模块：engine/match-calc.js → stealthBoost()</em></div>
+  </div>
+  <div class="flow-step">
+    <div class="n">4</div>
+    <div class="label">AI 终审</div>
+    <div class="desc">最终匹配 + 理由 + 奖惩执行。挖墙脚成功者自选惩罚。<br><em>模块：ai/ + engine/penalty-engine.js + ui/game-end-screen</em></div>
+  </div>
+</div>
+
+<table>
+  <tr><th>项目</th><th>V1</th><th>V2</th><th>负责模块</th></tr>
+  <tr><td>轮次名</td><td>默契轮</td><td><span class="tag tag-chg">人性博弈</span></td><td>data/constants.js</td></tr>
+  <tr><td>挖墙脚方式</td><td>点按钮消耗嫉妒值</td><td><span class="tag tag-chg">通过回答悄悄提升</span></td><td>engine/match-calc.js</td></tr>
+  <tr><td>投票惩罚</td><td>5 类随机 5 候选</td><td><span class="tag tag-keep">保留</span>，分上升/下降两类</td><td>engine/penalty-engine.js</td></tr>
+  <tr><td>游戏结束</td><td>热度 TOP3</td><td><span class="tag tag-chg">AI 终审报告</span> + 匹配理由</td><td>ai/ + ui/</td></tr>
+  <tr><td>额外轮次</td><td>固定 3 轮</td><td><span class="tag tag-new">可扩展</span></td><td>engine/round-manager.js</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s4">4. 奖惩机制</h2>
+
+<h3>4.1 数值生成（engine/match-calc.js）</h3>
+<table>
+  <tr><th>指标</th><th>含义</th><th>生成方式</th><th>阈值</th></tr>
+  <tr><td>暖心值 ❤️</td><td>两人匹配度上升</td><td>AI 根据回答相似度、情感倾向自动计算</td><td>≥ 70 触发亲密惩罚</td></tr>
+  <tr><td>火花值 🔥</td><td>两人匹配度下降/偏离</td><td>AI 根据回答分歧度自动计算</td><td>≤ 20 触发公开惩罚</td></tr>
+  <tr><td>重组 🔄</td><td>出现新的更高匹配对</td><td>AI 实时计算匹配矩阵变化</td><td>新匹配 > 原匹配 + 15</td></tr>
+</table>
+
+<h3>4.2 惩罚分类（data/penalties.js + engine/penalty-engine.js）</h3>
+<div class="compare">
+  <div>
+    <h4>🔺 匹配上升 → 亲密惩罚（pool_rise）</h4>
+    <ul><li>交杯酒</li><li>十指相扣保持到下一轮</li><li>深情对视 15 秒</li><li>公主抱 10 秒</li><li>互相喂食</li></ul>
+  </div>
+  <div>
+    <h4>🔻 匹配下降 → 公开惩罚（pool_fall）</h4>
+    <ul><li>真心话</li><li>大冒险（俯卧撑/深蹲）</li><li>表演节目</li><li>社交任务</li><li>喝酒类</li></ul>
+  </div>
+</div>
+
+<h3>4.3 触发流程（engine/penalty-engine.js）</h3>
+<ol>
+  <li>engine/match-calc.js 检测阈值触发</li>
+  <li>全端同步 JSON：<code>{"func":"penalty_trigger","type":"rise","pair":[1,3],"candidates":[...]}</code></li>
+  <li>所有玩家投票选具体内容（chat/penalty-candidates 从对应池随机 5 个）</li>
+  <li>挖墙脚成功：成功者自选惩罚，不走投票流程</li>
+  <li>超管可跳过/修改任何惩罚（app/actions.js → adminOverride）</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="s5">5. AI System Prompt</h2>
+
+<div class="card info">
+  <strong>模块位置</strong>：<code>ai/prompt-templates.js</code>。System Prompt 是模板文件，独立于发送逻辑。微调时只改这个文件，不改 ai-client.js。
+</div>
+
+<pre><code>// ai/prompt-templates.js 结构
+const SYSTEM_PROMPT = `...`           // 角色+规则（改风格时只改这个）
+const ROUND1_QUESTION = `...`         // 第一轮出题模板
+const ROUND2_QUESTION = `...`         // 第二轮出题模板
+const ROUND3_QUESTION = `...`         // 第三轮出题模板
+const MATCH_ANALYSIS = `...`          // 匹配分析模板
+const PENALTY_TRIGGER = `...`         // 惩罚触发模板
+const GAME_SUMMARY = `...`            // 终审模板
+
+module.exports = { SYSTEM_PROMPT, ROUND1_QUESTION, ROUND2_QUESTION, ... }
+</code></pre>
+
+<pre><code>// System Prompt 内容
+你是三六局（Sanliuju）的AI主持人。你全权负责游戏进程：出题、收集回答、计算匹配度、触发奖惩、生成总结。
+
+## 游戏流程
+
+### 第一轮「信息采集」
+目标：采集在场所有人的初始状态——偏好、性格、情绪的大致分布。
+- 出轻松诙谐的生活化问题，不要正经严肃
+- 每个问题让人自然地暴露信息，不评判不匹配
+- 轮末：基于所有回答生成初始匹配矩阵，分析每人的思维痕迹
+
+### 第二轮「当下匹配」
+目标：基于第一轮匹配数据，聚焦当下场景深化匹配。
+- 问题围绕：今天的心情、想做的事、对在场谁的印象最深
+- 不涉及深层价值观（留给第三轮）
+- 根据回答质量自动生成暖心值（匹配上升）和火花值（匹配偏离）
+- 只在数值达到阈值时公开结果，不解释每次变化原因
+
+### 第三轮「人性博弈」
+目标：核心玩点。清空前两轮对话日志，只保留匹配数据，从零中立匹配。
+- 提问涉及价值观、情感、灵魂拷问
+- 玩家通过回答问题悄悄提升与目标对象的匹配度
+- 挖墙脚成功由AI判定，成功者自选惩罚
+
+## 惩罚规则
+- 匹配上升 → 亲密型惩罚（交杯酒、对视、公主抱等）
+- 匹配下降 → 公开型惩罚（真心话、大冒险、表演等）
+- 挖墙脚成功 → 成功者自选惩罚被挖方
+
+## 输出格式
+- 所有输出必须是 JSON，每个 JSON 包含 func 字段指定渲染函数
+- 不输出纯文本解释，不输出 markdown
+
+## 风格
+- 幽默、戏精、接地气，像酒桌上最会搞气氛的朋友
+- 问题要让人一愣然后笑，然后认真回答
+- 语言：中文，口语化
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s6">6. JSON 输出规范</h2>
+
+<div class="card info">
+  <strong>模块位置</strong>：<code>ai/ai-client.js</code> 的 validateJSON() 校验函数 + <code>data/constants.js</code> 的 FUNC_LIST 常量。
+</div>
+
+<h3>6.1 AI 下行 func 列表</h3>
+
+<table>
+  <tr><th>func</th><th>触发时机</th><th>关键字段</th><th>渲染组件</th></tr>
+  <tr><td><code>new_question</code></td><td>每轮新题</td><td>round, question, question_id, timer</td><td>QuestionCard</td></tr>
+  <tr><td><code>match_result</code></td><td>轮末</td><td>pairs[{a,b,score,reason}], analysis</td><td>FloatRoom</td></tr>
+  <tr><td><code>value_update</code></td><td>暖心/火花变化</td><td>pair_id, heart_delta, spark_delta</td><td>ValueBadge</td></tr>
+  <tr><td><code>penalty_trigger</code></td><td>阈值触发</td><td>pair_id, type("rise"/"fall"), candidates[]</td><td>VotePanel</td></tr>
+  <tr><td><code>penalty_result</code></td><td>投票结束</td><td>pair_id, penalty_text, executor</td><td>PenaltyReveal</td></tr>
+  <tr><td><code>steal_success</code></td><td>挖墙脚成功</td><td>winner_id, loser_id, target_id, new_match</td><td>StealReveal</td></tr>
+  <tr><td><code>round_summary</code></td><td>每轮结束</td><td>round, stats, ai_comment</td><td>RoundSummary</td></tr>
+  <tr><td><code>game_end</code></td><td>游戏结束</td><td>final_pairs[], top_match, report</td><td>GameEndScreen</td></tr>
+  <tr><td><code>announcement</code></td><td>全局通知</td><td>text, level("info"/"warn"/"fun")</td><td>GlobalToast</td></tr>
+  <tr><td><code>tts_queue</code></td><td>语音播报</td><td>text, priority</td><td>TTSPlayer</td></tr>
+</table>
+
+<h3>6.2 终端上行 func 列表（app/actions.js → channel）</h3>
+<table>
+  <tr><th>func</th><th>触发</th><th>字段</th></tr>
+  <tr><td><code>submit_answer</code></td><td>玩家提交回答</td><td>question_id, answer_text</td></tr>
+  <tr><td><code>cast_vote</code></td><td>投票</td><td>penalty_event_id, choice_index</td></tr>
+  <tr><td><code>steal_punish</code></td><td>挖墙脚自选惩罚</td><td>steal_event_id, penalty_text</td></tr>
+  <tr><td><code>admin_override</code></td><td>超管干预</td><td>target_func, new_data</td></tr>
+</table>
+
+<h3>6.3 JSON 校验（ai/ai-client.js → validateJSON）</h3>
+<pre><code>// AI 返回的 JSON 必须通过此校验，失败则丢弃并触发 fallback
+function validateJSON(json) {
+  if (!json || !json.func) return false
+  if (!FUNC_LIST.includes(json.func)) return false
+  // 按 func 类型校验必填字段
+  const schema = FUNC_SCHEMA[json.func]
+  if (!schema) return false
+  return schema.required.every(f => json[f] !== undefined)
+}
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s7">7. 日志流转 & Token 控制</h2>
+
+<div class="card info">
+  <strong>模块位置</strong>：<code>state/game-state.js</code> 的 saveSnapshot/loadSnapshot + <code>ai/ai-client.js</code> 的 buildContext()。
+</div>
+
+<h3>7.1 游戏状态快照结构</h3>
+<pre><code>// state/game-state.js — 每次 AI 请求附带此结构
+{
+  "game_id": "xxx",
+  "round": 2,
+  "round1": {
+    "questions": [{ "id":"q1","text":"...","answers":[...] }],
+    "match_matrix": [{ "a":1,"b":3,"score":78,"reason":"..." }]
+  },
+  "round2": {
+    "heart_values": { "1-3": 65 },
+    "spark_values": { "2-5": 30 }
+  }
+}
+</code></pre>
+
+<h3>7.2 Token 控制</h3>
+<table>
+  <tr><th>策略</th><th>位置</th><th>节省</th></tr>
+  <tr><td>三轮前清空对话日志</td><td>engine/round-manager.js → startRound(3)</td><td>~60%</td></tr>
+  <tr><td>JSON Only 输出</td><td>ai/prompt-templates.js（System Prompt 中约束）</td><td>~40%</td></tr>
+  <tr><td>玩家回答截断 50 字</td><td>app/actions.js → submitAnswer() 提交前截断</td><td>~15%</td></tr>
+  <tr><td>分轮独立请求</td><td>ai/ai-client.js → buildContext() 只带当前轮前后各一轮</td><td>结构性</td></tr>
+</table>
+
+<h3>7.3 存储（state/game-state.js → Supabase）</h3>
+<pre><code>// Supabase game_snapshots 表
+{ game_id: "xxx", round: 1, snapshot: {...}, updated_at: "..." }
+// 每轮结束 upsert。重进时按 game_id + player_id 查询恢复。
+</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="s8">8. 终端渲染协议</h2>
+
+<div class="card info">
+  <strong>模块位置</strong>：<code>ui/renderer-*.js</code>。渲染层是平台相关的唯一模块——Web 版用 DOM 操作，小程序版用 WXML 数据绑定。其余所有模块与平台无关。
+</div>
+
+<h3>8.1 渲染组件</h3>
+<table>
+  <tr><th>组件</th><th>绑定 func</th><th>Web 实现</th><th>小程序实现</th></tr>
+  <tr><td>QuestionCard</td><td>new_question</td><td>innerHTML + classList</td><td>&lt;view&gt; + wx:if 数据绑定</td></tr>
+  <tr><td>FloatRoom</td><td>match_result</td><td>absolute 定位 + CSS animation</td><td>movable-view 或 canvas</td></tr>
+  <tr><td>VotePanel</td><td>penalty_trigger</td><td>DOM 事件委托</td><td>bindtap + data-index</td></tr>
+  <tr><td>GlobalToast</td><td>announcement</td><td>fixed 定位 + transition</td><td>wx.showToast</td></tr>
+  <tr><td>TTSPlayer</td><td>tts_queue</td><td>SpeechSynthesis API</td><td>wx.createInnerAudioContext</td></tr>
+  <tr><td>GameEndScreen</td><td>game_end</td><td>CSS 收敛动画</td><td>wx.createAnimation</td></tr>
+</table>
+
+<h3>8.2 渲染流程（平台无关逻辑）</h3>
+<ol>
+  <li>channel/supabase-channel.js 收到 JSON</li>
+  <li>解析 func → 查找 FUNC_ROUTER 映射表（data/constants.js）</li>
+  <li>调用对应 ui/renderer-*.js 的渲染函数</li>
+  <li>渲染函数读取 state 片段 → 输出视图</li>
+  <li>func 未知 → console.warn + 忽略</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="s9">9. 重进恢复方案</h2>
+
+<div class="card warn">
+  <strong>V1 问题</strong>：localStorage 只能恢复同设备同浏览器，换设备后进度丢失。缺少跨设备同步。
+</div>
+
+<table>
+  <tr><th>方案</th><th>模块</th><th>场景</th></tr>
+  <tr><td>localStorage 快照</td><td>state/game-state.js → saveLocal()</td><td>同设备刷新</td></tr>
+  <tr><td>Supabase game_snapshots</td><td>state/game-state.js → saveRemote()</td><td>换设备、清缓存</td></tr>
+  <tr><td>ROOM_STATE 请求</td><td>channel/ → ROOM_STATE_REQUEST</td><td>重连后从 AI 读取快照恢复</td></tr>
+  <tr><td>小程序 wx.setStorageSync</td><td>state/game-state.js → 小程序适配层</td><td>小程序环境内的刷新恢复</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s10">10. 部署 & 移植路径</h2>
+
+<h3>10.1 部署架构（不变）</h3>
+<pre><code>
+终端层          ┌──────────┐  ┌──────────┐  ┌──────────┐
+(纯渲染)        │ 手机1     │  │ 手机2     │  │ 超管      │
+                └────┬─────┘  └────┬─────┘  └────┬─────┘
+                     │             │             │
+                     └─────────────┼─────────────┘
+                                   │ Supabase Realtime
+                                   ▼
+消息总线        ┌──────────────────────────────────┐
+                │     Supabase Realtime             │
+                └──────────────┬───────────────────┘
+                               │
+                               ▼
+AI 计算         ┌──────────────────────────────────┐
+                │  CF Pages Function /api/ai        │
+                │  → DeepSeek API                   │
+                └──────────────┬───────────────────┘
+                               │
+                               ▼
+持久化          ┌──────────────────────────────────┐
+                │  Supabase PostgreSQL              │
+                │  game_snapshots 表                │
+                └──────────────────────────────────┘
+</code></pre>
+
+<h3>10.2 移植路径</h3>
+<table>
+  <tr><th>阶段</th><th>平台</th><th>UI 层</th><th>消息层</th><th>状态存储</th><th>状态</th></tr>
+  <tr>
+    <td>1</td>
+    <td>Web 模拟器</td>
+    <td>HTML DOM</td>
+    <td>supabase-js</td>
+    <td>localStorage</td>
+    <td><span class="tag tag-keep">当前</span></td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>微信小程序</td>
+    <td>WXML + WXSS</td>
+    <td>supabase-js（小程序版）</td>
+    <td>wx.setStorageSync</td>
+    <td><span class="tag tag-new">目标</span></td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>APP</td>
+    <td>React Native / Flutter</td>
+    <td>supabase-js</td>
+    <td>AsyncStorage</td>
+    <td><span class="tag wait">远期</span></td>
+  </tr>
+</table>
+
+<h3>10.3 移植时不变的模块</h3>
+<div class="card good">
+  <strong>以下模块直接复用，无需修改</strong>：
+  <ul>
+    <li><code>data/</code>（全部纯数据文件）</li>
+    <li><code>engine/</code>（全部纯逻辑文件）</li>
+    <li><code>ai/prompt-templates.js</code>（prompt 模板）</li>
+    <li><code>state/game-state.js</code>（核心逻辑；适配层换 storage 实现）</li>
+    <li><code>monitor/monitor.js</code>（独立进程，不移植）</li>
+  </ul>
+</div>
+
+<h3>10.4 移植时需要改的模块</h3>
+<table>
+  <tr><th>模块</th><th>Web 版</th><th>小程序版</th><th>改动量</th></tr>
+  <tr><td>ai/ai-client.js</td><td>fetch()</td><td>wx.request()</td><td>3 行（网络调用适配器）</td></tr>
+  <tr><td>channel/supabase-channel.js</td><td>@supabase/supabase-js</td><td>小程序版 supabase SDK</td><td>import 路径 + 初始化方式</td></tr>
+  <tr><td>state/game-state.js</td><td>localStorage API</td><td>wx.setStorageSync / wx.getStorageSync</td><td>storage 适配层（5 个函数）</td></tr>
+  <tr><td>ui/*</td><td>DOM (innerHTML, classList)</td><td>WXML (数据绑定, wx:if)</td><td>整体重写（渲染层本就该替换）</td></tr>
+  <tr><td>app/actions.js</td><td>onclick 事件绑定</td><td>bindtap 事件绑定</td><td>事件名替换 + this.setData</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s11">11. 待讨论问题</h2>
+
+<div class="card warn">
+  <ol>
+    <li><strong>AI 主持人实现方式</strong>：纯 Prompt 驱动（规则全在 System Prompt）vs 混合驱动（阈值/触发仍硬编码，AI 只出题+评分）？纯 Prompt 可能漂移，混合更稳定但增加复杂度。<br>
+    <em>建议：混合驱动。关键阈值硬编码在 engine/，AI 只负责需要"智能"的部分（出题、评分、总结）。</em></li>
+
+    <li><strong>玩家文字输入</strong>：V1 只有方向标记，V2 需要完整回答输入。小程序原生有 textarea 组件，Web 版加 &lt;textarea&gt;。需考虑 50 字截断规则。</li>
+
+    <li><strong>匹配度展示粒度</strong>：只显示分数？还是显示理由？理由更可信但消耗 token。建议：默认只显示分数，超管可展开看理由。</li>
+
+    <li><strong>第四轮及以后</strong>：复用第二轮机制？还是三轮结束，线下延续？建议：初版固定三轮，验证后再扩展。</li>
+
+    <li><strong>语音播报</strong>：Web 版用 SpeechSynthesis API（浏览器内置），小程序版用 wx.createInnerAudioContext + 预生成 MP3。初版不做，先纯文字。</li>
+
+    <li><strong>超管干预粒度</strong>：三种操作：1) 跳过本轮 2) 修改匹配对 3) 跳过惩罚。需要独立 UI 面板。<br>
+    <em>建议：初版只做"跳过惩罚"和"修改匹配"，其他后续加。</em></li>
+
+    <li><strong>惩罚候选生成</strong>：系统从惩罚池随机 → AI 排序推荐 → 玩家投票？还是纯随机？建议：系统随机 5 个 + AI 可选推荐排序，保证多样性。</li>
+
+    <li><strong>隐私</strong>：玩家回答轮内不可见，轮末 AI 生成匹配理由时才暴露部分信息。理由不包含原始回答全文，只包含"你们对颜色的感受相似"这类摘要。</li>
+  </ol>
+</div>
+
+<p style="margin-top:60px;color:var(--t3);font-size:13px;text-align:center;">
+  三六局 V2 设计方案 · 2026-05-15 · 模块化 · 目标平台：微信小程序
+</p>
+
+</body>
+</html>
