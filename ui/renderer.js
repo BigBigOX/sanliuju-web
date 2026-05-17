@@ -285,6 +285,23 @@ function createRenderer(stateManager) {
     const matchPanel = $('player-match-result')
     if (matchPanel && S.game._matchAnalysis && S.game.phase === 'results') {
       matchPanel.style.display = ''
+      // Show top pairs with scores
+      const pairsEl = $('player-match-pairs')
+      if (pairsEl) {
+        const topPairs = Object.entries(S.heat).filter(([,v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        pairsEl.innerHTML = topPairs.map(([key, val], i) => {
+          const [a, b] = key.split('-').map(Number)
+          const pa = S.players.find(x => x.id === a)
+          const pb = S.players.find(x => x.id === b)
+          const emoji = val >= 60 ? '🔥' : val >= 40 ? '✨' : '👀'
+          const colors = ['var(--warm)', '#F59E0B', 'var(--t2)'][i] || 'var(--t2)'
+          return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:14px;border:1px solid rgba(255,255,255,0.06);animation:fadeUp .4s ease both;animation-delay:${i*0.1}s;">
+            <span style="font-size:24px;">${pa?.avatar||'?'}</span>
+            <span style="font-weight:600;color:var(--text);flex:1;">${pa?.nickname||a} ↔ ${pb?.nickname||b}</span>
+            <span style="font-size:20px;font-weight:800;color:${colors};">${val}</span>
+            <span style="font-size:16px;">${emoji}</span></div>`
+        }).join('') || '<div style="text-align:center;color:var(--t3);font-size:12px;">等待更多数据…</div>'
+      }
       $('player-match-text').textContent = S.game._matchAnalysis
     } else if (matchPanel) { matchPanel.style.display = 'none' }
 
