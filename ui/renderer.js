@@ -58,9 +58,11 @@ function createRenderer(stateManager) {
     const scriptCard = $('host-script-card'), scriptText = $('host-script-text')
     if (scriptCard && scriptText && S.game._hostLine) {
       let line = S.game._hostLine
-      // Strip raw JSON if AI accidentally returned it
-      const m = line.match(/"text"\s*:\s*"([^"]+)"/)
-      if (m) line = m[1]
+      // Strip ANY raw JSON — extract the meaningful text field
+      if (line.startsWith('{') && line.includes('"func"')) {
+        const j = extractTextFromJSON(line)
+        if (j) line = j
+      }
       scriptCard.style.display = ''
       scriptText.textContent = '你可以跟大家说："' + line + '"'
     } else if (scriptCard) { scriptCard.style.display = 'none' }
@@ -374,6 +376,20 @@ function createRenderer(stateManager) {
       const drift = C.generateDrift()
       return `<div class="player-float joined" data-pid="${p.id}" style="left:${left}px;top:${top}px;--drift-x:${drift.x}px;--drift-y:${drift.y}px;--drift-dur:${drift.dur}s;--drift-delay:${drift.delay}s"><div class="pf-avatar">${p.avatar||'🎭'}</div><div class="pf-tag">${p.nickname||('玩家'+p.id)}</div>${p.isHost?'<div class="pf-host">👑</div>':''}</div>`
     }).join('') + (joined.length === 0 ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--t2);font-size:14px;">等待玩家加入…</div>' : '')
+  }
+
+  function extractTextFromJSON(str) {
+    try {
+      const j = JSON.parse(str)
+      return j.text || j.question || j.analysis || j.ai_comment || j.report || ''
+    } catch (_) {
+      // Try regex extraction
+      for (const key of ['text', 'question', 'analysis', 'ai_comment']) {
+        const m = str.match(new RegExp('"' + key + '"\\s*:\\s*"([^"]+)"'))
+        if (m) return m[1]
+      }
+      return ''
+    }
   }
 
   function renderPenaltyReveal() {

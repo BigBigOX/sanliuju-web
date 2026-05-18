@@ -10,7 +10,7 @@ let callTimestamps = []
 const MAX_CALLS_PER_MINUTE = 10
 
 function getAudio() {
-  if (!audioEl) { audioEl = new Audio() }
+  if (!audioEl) { audioEl = new Audio(); audioEl.volume = 1.0 }
   audioEl.pause(); audioEl.currentTime = 0
   return audioEl
 }
