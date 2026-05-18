@@ -7,7 +7,7 @@ const fs = require('fs')
 const https = require('https')
 
 const BASE = process.argv.find(a => a.startsWith('--url='))?.split('=')[1]
-  || 'https://6b313697.sanliuju-web.pages.dev'
+  || 'https://36.bigbigox.dpdns.org'
 const MODE = process.argv.find(a => a.startsWith('--mode='))?.split('=')[1] || 'auto'
 const AI_KEY = 'sk-7cab2d990ac84d3fa9b5279ad3b4a3a6'
 const AI_MODEL = 'qwen3.6-plus'
@@ -35,19 +35,57 @@ const HOST_NAME = '耶耶'
 const REPORT_LINES = []
 function R(s) { REPORT_LINES.push(s); console.log(s) }
 
-// Dynamic answer generation based on question content + player persona
+// Simulate player disconnect + reconnect
+async function simulateDisconnect(context, page, playerName, roomCode, durationMs) {
+  R(`\n🔌 **${playerName} 断线测试** — 关闭标签 ${(durationMs/1000).toFixed(0)} 秒\n`)
+  await page.close()
+  await sleep(durationMs)
+
+  // Reopen and rejoin
+  const newPage = await context.newPage()
+  await newPage.goto(BASE)
+  await newPage.waitForLoadState('networkidle')
+  await sleep(500)
+  // Click rejoin banner if visible
+  const rejoinBtn = newPage.locator('text=重新加入')
+  if (await rejoinBtn.isVisible()) {
+    await rejoinBtn.click()
+    R(`- ${playerName}: 点击了重新加入`)
+  } else {
+    // Manual rejoin
+    await newPage.click('text=使用新名字')
+    await newPage.fill('#new-name-input', playerName)
+    await sleep(200)
+    const avOpts = await newPage.$$('.avatar-opt')
+    for (const opt of avOpts) {
+      const t = (await opt.textContent()).trim()
+      const player = PLAYERS.find(p => p.name === playerName)
+      if (player && t === player.avatar) { await opt.click(); break }
+    }
+    await sleep(200)
+    await newPage.click('text=确认 → 选择角色')
+    await sleep(300)
+    await newPage.click('text=加入聚会')
+    await newPage.fill('#join-input', roomCode)
+    await newPage.click('text=加入房间')
+  }
+  await sleep(2000)
+  R(`- ${playerName}: 重连完成`)
+  return newPage
+}
+
+// Natural human answer generation — varied, conversational, with fillers
 function generateAnswer(player, question, round) {
   const q = question || ''
   const n = player.name
   const kw = extractKeywords(q)
+  const thinking = ['嗯… ', '哈哈 ', 'emm ', '嘶… ', '', '让我想想啊… ', '这个问题有意思，', '', '啊这，'][Math.floor(Math.random()*9)]
+  const ending = ['吧', '吧哈哈', '~', '！', '…应该', '吧，我觉得', '？', ''][Math.floor(Math.random()*8)]
 
-  // Round 1: light-hearted, self-revealing
-  if (round === 1) return round1Answer(player, q, kw)
-  // Round 2: scene-based, interpersonal
-  if (round === 2) return round2Answer(player, q, kw)
-  // Round 3: deep values, philosophical
-  if (round === 3) return round3Answer(player, q, kw)
-  return '让我想一想……'
+  if (round === 1) return thinking + round1Answer(player, q, kw) + ending
+  if (round === 2) return thinking + round2Answer(player, q, kw) + ending
+  if (round === 3) return thinking + round3Answer(player, q, kw) + ending
+  return thinking + '让我想想……这个问题还真不太好回答' + ending
 }
 
 function extractKeywords(q) {
@@ -363,7 +401,22 @@ async function main() {
         .slice(0, 200).replace(/\|/g, '\\|')
 
       R(`| ${q} | ${question.slice(0, 25)} | ${answers[0]?.slice(0,8)} | ${answers[1]?.slice(0,8)} | ${answers[2]?.slice(0,8)} | ${answers[3]?.slice(0,8)} | ${analysis.slice(0,30)} |`)
+
+      // 🔌 Disconnect test 1: Round 1 Q3 — player "老陈" drops during analysis
+      if (round === 1 && q === 3) {
+        playerPages[1] = await simulateDisconnect(context, playerPages[1], '老陈', roomCode, 12000)
+      }
+      // 🔌 Disconnect test 2: Round 2 Q2 — player "软软" drops during answering
+      if (round === 2 && q === 2) {
+        playerPages[2] = await simulateDisconnect(context, playerPages[2], '软软', roomCode, 12000)
+      }
+
       await sleep(2000)
+    }
+
+    // 🔌 Disconnect test 3: Between rounds — player "大刘" drops during transition
+    if (round === 1) {
+      playerPages[3] = await simulateDisconnect(context, playerPages[3], '大刘', roomCode, 12000)
     }
 
     // Settlement — wait for auto-settle (SETTLEMENT_DISPLAY_MS + analysis time)
